@@ -37,7 +37,15 @@ This is the central API hub for the Scriptcase Versioning Hub (SVH) ecosystem. I
     ```bash
     php artisan migrate
     ```
-4.  **Admin User**:
+4.  **Assets**:
+    ```bash
+    npm install
+    npm run build
+    php artisan filament:assets
+    ```
+    *Note: If styles are not loading, ensure both `npm run build` and `php artisan filament:assets` have been executed.*
+
+5.  **Admin User**:
     You can create an admin user with:
     ```bash
     php artisan make:filament-user
@@ -51,7 +59,7 @@ The project includes a production-ready Docker configuration using FrankenPHP.
 ```bash
 docker compose up -d
 ```
-*Note: If styles appear as plain text in the browser, run `npm install && npm run build` on the host to generate the Vite manifest.*
+*Note: If styles appear as plain text in the browser, run `npm install && npm run build` on the host to generate the Vite manifest, and `docker compose exec app php artisan filament:assets` to publish Filament core styles.*
 
 ## 📋 API Endpoints
 

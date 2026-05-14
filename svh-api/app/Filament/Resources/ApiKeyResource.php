@@ -21,15 +21,27 @@ class ApiKeyResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\TextInput::make('name')->required(),
-                Forms\Components\TextInput::make('email')->email(),
-                Forms\Components\Select::make('scope')
-                    ->options([
-                        'developer' => 'Developer',
-                        'admin' => 'Admin',
+                Forms\Components\Section::make()
+                    ->schema([
+                        Forms\Components\TextInput::make('name')->required(),
+                        Forms\Components\TextInput::make('email')
+                            ->email()
+                            ->required()
+                            ->unique(ignoreRecord: true),
+                        Forms\Components\Select::make('scope')
+                            ->options([
+                                'developer' => 'Developer',
+                                'admin' => 'Admin',
+                            ])
+                            ->default('developer')
+                            ->required(),
+                        Forms\Components\TextInput::make('prefix')
+                            ->disabled()
+                            ->visible(fn ($record) => $record !== null),
+                        Forms\Components\DateTimePicker::make('created_at')
+                            ->disabled()
+                            ->visible(fn ($record) => $record !== null),
                     ])
-                    ->default('developer')
-                    ->required(),
             ]);
     }
 
