@@ -1,0 +1,36 @@
+/vendor
+/node_modules
+/.idea
+/.vscode
+/.vagrant
+Homestead.json
+Homestead.yaml
+auth.json
+npm-debug.log
+yarn-error.log
+.env
+.env.backup
+.env.production
+.phpactor.json
+.phpunit.result.cache
+.php-cs-fixer.cache
+phpunit.xml
+phpstan.neon
+
+# Laravel
+svh-api/bootstrap/cache/*
+!svh-api/bootstrap/cache/.gitignore
+svh-api/storage/app/*
+!svh-api/storage/app/.gitignore
+svh-api/storage/framework/*
+!svh-api/storage/framework/.gitignore
+svh-api/storage/logs/*
+!svh-api/storage/logs/.gitignore
+
+# Extension
+svh-extension/dist/
+svh-extension/node_modules/
+
+# Misc
+.DS_Store
+*.log

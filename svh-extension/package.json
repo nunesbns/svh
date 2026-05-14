@@ -1,0 +1,22 @@
+{
+  "name": "svh-extension",
+  "version": "1.0.0",
+  "description": "Scriptcase Versioning Hub Chrome Extension",
+  "scripts": {
+    "build": "node build.js",
+    "watch": "node build.js --watch",
+    "test": "jest",
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.268",
+    "@types/jest": "^29.5.12",
+    "esbuild": "^0.20.2",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "diff2html": "^3.4.48"
+  }
+}

@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>SVH Status</title>
+  <style>
+    body { font-family: sans-serif; padding: 12px; width: 240px; }
+    .status { display: flex; align-items: center; gap: 8px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; }
+    .dot.off { background: #ef4444; }
+  </style>
+</head>
+<body>
+  <h2>SVH</h2>
+  <div class="status"><div class="dot" id="dot"></div><span id="text">Checking...</span></div>
+  <p><a href="/options.html" target="_blank">Open Options</a></p>
+  <script src="popup.js"></script>
+</body>
+</html>

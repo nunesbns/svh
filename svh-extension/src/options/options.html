@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>SVH Options</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; max-width: 400px; margin: auto; }
+    label { display: block; margin-top: 12px; font-weight: bold; }
+    input { width: 100%; padding: 8px; margin-top: 4px; box-sizing: border-box; }
+    button { margin-top: 16px; padding: 8px 16px; }
+    #status { margin-top: 12px; color: green; }
+  </style>
+</head>
+<body>
+  <h1>Scriptcase Versioning Hub</h1>
+  <label>API URL</label>
+  <input type="url" id="apiUrl" placeholder="https://svh.empresa.com">
+  <label>API Key</label>
+  <input type="password" id="apiKey" placeholder="svh_...">
+  <label>IDE URL Pattern</label>
+  <input type="text" id="idePattern" value="https://*/scriptcase/devel/*">
+  <button id="save">Save</button>
+  <div id="status"></div>
+  <script src="options.js"></script>
+</body>
+</html>

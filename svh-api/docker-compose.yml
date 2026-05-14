@@ -1,0 +1,52 @@
+services:
+  app:
+    build:
+      target: runtime
+    volumes:
+      - .:/app
+      - /app/vendor
+      - /app/node_modules
+    env_file: .env
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      APP_DEBUG: ${APP_DEBUG:-true}
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    depends_on: [db, redis]
+    command: >
+      sh -c "php artisan serve --host=${APP_HOST:-0.0.0.0} --port=8080"
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-svh}
+      POSTGRES_USER: ${POSTGRES_USER:-svh}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - svh_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U ${POSTGRES_USER:-svh}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    env_file: .env
+    command: >
+      sh -c "redis-server
+      --port ${REDIS_PORT:-6379}
+      --appendonly ${REDIS_AOF:-yes}"
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - svh_redis:/data
+
+volumes:
+  svh_db:
+  svh_redis:
