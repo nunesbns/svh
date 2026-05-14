@@ -26,6 +26,8 @@ This is the central API hub for the Scriptcase Versioning Hub (SVH) ecosystem. I
     npm install
     npm run build
     ```
+    *Note: If styles are not loading, ensure `npm run build` has been executed.*
+
 2.  **Environment**:
     ```bash
     cp .env.example .env
@@ -36,9 +38,11 @@ This is the central API hub for the Scriptcase Versioning Hub (SVH) ecosystem. I
     php artisan migrate
     ```
 4.  **Admin User**:
+    You can create an admin user with:
     ```bash
     php artisan make:filament-user
     ```
+    *Default credentials (if created via setup script): `admin@admin.com` / `admin`*
 
 ## 🐳 Docker Deployment
 
@@ -47,6 +51,7 @@ The project includes a production-ready Docker configuration using FrankenPHP.
 ```bash
 docker compose up -d
 ```
+*Note: If styles appear as plain text in the browser, run `npm install && npm run build` on the host to generate the Vite manifest.*
 
 ## 📋 API Endpoints
 
