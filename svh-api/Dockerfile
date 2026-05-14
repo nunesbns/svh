@@ -1,11 +1,14 @@
 # ============================================================
 # Stage 1 — Composer deps
 # ============================================================
-FROM composer:2 AS vendor
+FROM dunglas/frankenphp:1-php8.4-bookworm AS vendor
 WORKDIR /app
+RUN install-php-extensions \
+      pdo_pgsql pgsql redis intl bcmath opcache zip pcntl
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 COPY composer.json composer.lock ./
 RUN composer install \
-      --no-dev --no-scripts --no-interaction \
+      --no-scripts --no-interaction \
       --prefer-dist --optimize-autoloader
 
 # ============================================================
@@ -14,7 +17,7 @@ RUN composer install \
 FROM node:22-alpine AS frontend
 WORKDIR /app
 COPY package*.json vite.config.* tailwind.config.* postcss.config.* ./
-RUN npm ci
+RUN npm install
 COPY resources resources
 COPY public public
 RUN npm run build
@@ -54,14 +57,13 @@ COPY docker/entrypoint.sh         /usr/local/bin/entrypoint
 RUN chmod +x /usr/local/bin/entrypoint
 
 # Otimizações Laravel 12 em build
-RUN php artisan storage:link || true \
+RUN mkdir -p resources/views storage/framework/{cache,sessions,testing,views} bootstrap/cache \
+ && chown -R www-data:www-data storage bootstrap/cache \
+ && php artisan storage:link || true \
  && php artisan event:cache \
- && php artisan view:cache \
+ && php artisan view:cache || true \
  && php artisan route:cache \
  && php artisan config:cache
-
-RUN mkdir -p storage/framework/{cache,sessions,testing,views} bootstrap/cache \
- && chown -R www-data:www-data storage bootstrap/cache
 
 LABEL org.opencontainers.image.title="Scriptcase Versioning Hub" \
       org.opencontainers.image.version="${APP_VERSION}" \

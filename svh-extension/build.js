@@ -38,6 +38,12 @@ async function build() {
   fs.copyFileSync('manifest.json', 'dist/manifest.json');
   fs.copyFileSync('src/options/options.html', 'dist/options.html');
   fs.copyFileSync('src/popup/popup.html', 'dist/popup.html');
+
+  // Copy inject folder
+  if (!fs.existsSync('dist/inject')) {
+    fs.mkdirSync('dist/inject', { recursive: true });
+  }
+  fs.copyFileSync('inject/fetch-patch.js', 'dist/inject/fetch-patch.js');
 }
 
 build().catch((e) => {
