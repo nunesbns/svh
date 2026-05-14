@@ -94,7 +94,6 @@ Centralized hub for persistence and management.
 
 - `svh-api/`: Laravel backend application.
 - `svh-extension/`: Chrome extension source code.
-- `documents/`: Planning and TDD documents.
 
 ## 📄 License
 
