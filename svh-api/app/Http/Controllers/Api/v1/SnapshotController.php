@@ -7,10 +7,8 @@ use App\Jobs\PersistSnapshotJob;
 use App\Models\Application;
 use App\Models\AuditLog;
 use App\Models\Project;
-use App\Services\SnapshotService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Redis;
 
 class SnapshotController extends Controller
 {

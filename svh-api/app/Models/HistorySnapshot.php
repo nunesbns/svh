@@ -2,33 +2,24 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
 class HistorySnapshot extends Model
 {
     use HasFactory, HasUuids;
 
-    protected $table = 'history_snapshots';
+    protected $guarded = [];
 
-    protected $fillable = [
-        'project_id',
-        'application_id',
-        'type',
-        'scope',
-        'user_sc_login',
-        'content_blob',
-        'hash_sha256',
-        'captured_at',
-        'metadata',
-    ];
+    protected $keyType = 'string';
+
+    public $incrementing = false;
 
     protected $casts = [
+        'metadata' => 'json',
         'captured_at' => 'datetime',
-        'metadata' => 'array',
-        'content_blob' => 'string',
     ];
 
     public function project(): BelongsTo
@@ -39,5 +30,17 @@ class HistorySnapshot extends Model
     public function application(): BelongsTo
     {
         return $this->belongsTo(Application::class);
+    }
+
+    // Use a proper accessor method compatible with Laravel 12/11 style if needed, 
+    // but the old style should work. Let's make it more robust.
+    protected function getContentBlobAttribute($value)
+    {
+        if (is_resource($value)) {
+            $content = stream_get_contents($value);
+            return $content;
+        }
+
+        return $value;
     }
 }

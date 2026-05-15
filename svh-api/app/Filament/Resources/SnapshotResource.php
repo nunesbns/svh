@@ -9,11 +9,36 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 
+use App\Infolists\Components\DiffEntry;
+use Filament\Infolists\Infolist;
+use Filament\Infolists;
+
 class SnapshotResource extends Resource
 {
     protected static ?string $model = HistorySnapshot::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-document-text';
+
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist
+            ->schema([
+                Infolists\Components\Section::make('Context Info')
+                    ->schema([
+                        Infolists\Components\TextEntry::make('project.name'),
+                        Infolists\Components\TextEntry::make('application.display_name'),
+                        Infolists\Components\TextEntry::make('scope'),
+                        Infolists\Components\TextEntry::make('user_sc_login'),
+                        Infolists\Components\TextEntry::make('captured_at')->dateTime(),
+                    ])->columns(3),
+                Infolists\Components\Section::make('Code Changes')
+                    ->schema([
+                        DiffEntry::make('content_blob')
+                            ->columnSpanFull()
+                            ->label(''),
+                    ]),
+            ]);
+    }
 
     public static function form(Form $form): Form
     {
