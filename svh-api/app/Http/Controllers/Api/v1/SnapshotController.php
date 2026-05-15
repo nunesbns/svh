@@ -48,8 +48,7 @@ class SnapshotController extends Controller
             'application_id' => $application->id,
         ];
 
-        $queueName = "project:{$project->id}";
-        PersistSnapshotJob::dispatch($payload)->onQueue($queueName);
+        PersistSnapshotJob::dispatch($payload)->onQueue('snapshots');
 
         AuditLog::create([
             'action' => 'snapshot.created',
