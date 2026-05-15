@@ -98,6 +98,8 @@ function init() {
       const isVisible = sidebarEl!.style.display === 'flex';
       sidebarEl!.style.display = isVisible ? 'none' : 'flex';
       if (!isVisible) {
+        // Force resolver to refresh context from current DOM before loading history
+        if (resolver) resolver.resolve();
         document.dispatchEvent(new CustomEvent('svh:refresh-history'));
       }
     };

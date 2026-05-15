@@ -36,7 +36,10 @@ async function setTabContext(tabId: number, context: any) {
 
     if (changed) {
       await chrome.storage.local.set({ [`tab_ctx_${tabId}`]: updated });
-      console.log(`SVH: Updated persistent context for tab ${tabId}`, updated);
+      console.log(`SVH Background: Context MERGED for tab ${tabId}:`, updated);
+    } else {
+      // Log even if not changed to see what's coming
+      console.log(`SVH Background: Context received (No Change) for tab ${tabId}:`, context);
     }
   } catch (e) {
     console.error('SVH: Error setting tab context', e);
@@ -104,6 +107,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       setTabContext(tabId, message.payload);
     }
     // No response needed for SET_CONTEXT
+    return false;
+  }
+
+  if (message.type === 'GET_CONTEXT') {
+    const tabId = sender.tab?.id;
+    if (tabId !== undefined) {
+      getTabContext(tabId).then(ctx => {
+        sendResponse({ ok: true, data: ctx });
+      });
+      return true;
+    }
+    sendResponse({ ok: false, error: 'No tab ID' });
     return false;
   }
 

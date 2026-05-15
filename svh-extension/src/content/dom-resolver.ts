@@ -15,15 +15,8 @@ export class DomResolver {
     this.observer = new MutationObserver(() => this.resolve());
     this.observer.observe(document.body, { childList: true, subtree: true });
     
-    // Also try to observe the top window if we are in an iframe
-    if (window !== window.top) {
-      try {
-        const topObserver = new MutationObserver(() => this.resolve());
-        topObserver.observe(window.top!.document.body, { childList: true, subtree: true });
-      } catch (e) {
-        // Cross-origin or other issue
-      }
-    }
+    // Check on interval as well to be safe
+    setInterval(() => this.resolve(), 2000);
   }
 
   stop() {
@@ -34,9 +27,8 @@ export class DomResolver {
     return this.context;
   }
 
-  private resolve() {
+  resolve() {
     try {
-      // Check if context is valid before proceeding
       if (!chrome.runtime?.id) return;
 
       const cod_prj = this.extractCodPrj();
@@ -44,6 +36,7 @@ export class DomResolver {
       const scope = this.extractScope();
       const user_sc_login = this.extractUser();
 
+      // Only build a context if we found AT LEAST ONE real piece of info
       if (cod_prj || cod_apl || scope || user_sc_login) {
         const newContext: ScriptcaseContext = {
           cod_prj: cod_prj || 'Unknown',
@@ -55,107 +48,78 @@ export class DomResolver {
 
         if (JSON.stringify(newContext) !== JSON.stringify(this.context)) {
           this.context = newContext;
-          console.log('SVH: Context detected:', this.context);
           
-          // Only dispatch and notify if we have at least SOME real data
-          if (newContext.cod_prj !== 'Unknown' || newContext.cod_apl !== 'Unknown') {
-            document.dispatchEvent(new CustomEvent('svh:context-updated', { detail: this.context }));
-            
-            // Notify background - wrap in try/catch for invalidated context
-            try {
-              if (chrome.runtime?.id) {
-                chrome.runtime.sendMessage({ type: 'SET_CONTEXT', payload: this.context }).catch(() => {
-                  // Ignore errors after context invalidation
-                });
-              }
-            } catch (e) {
-              // Context invalidated
-            }
+          // Debug what this specific frame found
+          if (scope) {
+            console.log(`SVH: Frame found scope -> ${scope}`);
           }
-          
-          // Notify top window to update sidebar
-          if (window !== window.top) {
-            try {
-              window.top!.postMessage({ type: 'SVH_CONTEXT_UPDATED', payload: this.context }, '*');
-            } catch (e) {}
-          }
+
+          // Notify background
+          try {
+            chrome.runtime.sendMessage({ type: 'SET_CONTEXT', payload: this.context }).catch(() => {});
+          } catch (e) {}
+
+          // Local event for sidebar if it's in this same frame
+          document.dispatchEvent(new CustomEvent('svh:context-updated', { detail: this.context }));
         }
       }
-    } catch (e) {
-      // Don't log if it's just the context invalidation error
-      if (e instanceof Error && e.message.includes('context invalidated')) return;
-      console.error('SVH: Error resolving context', e);
-    }
+    } catch (e) {}
   }
 
   private extractCodPrj(): string | null {
     try {
-      // 1. Try global variable from Scriptcase (if accessible)
       const win = window as any;
-      const topWin = window.top as any;
+      if (win.NM_cod_prj) return String(win.NM_cod_prj);
       
-      const cod = win.NM_cod_prj || topWin?.NM_cod_prj || win.parent?.NM_cod_prj;
-      if (cod) return String(cod);
-
-      // 2. Try the tooltip/header
-      let el = document.querySelector('#project_tooltip .project') as HTMLElement;
-      if (!el && window.top) {
-        try { el = window.top.document.querySelector('#project_tooltip .project') as HTMLElement; } catch {}
-      }
+      const el = document.querySelector('#project_tooltip .project') as HTMLElement;
       return el?.innerText?.trim() || null;
-    } catch {
-      return null;
-    }
+    } catch { return null; }
   }
 
   private extractCodApl(): string | null {
     try {
-      // 1. Try global variable
       const win = window as any;
-      const topWin = window.top as any;
-      const cod = win.NM_cod_apl || topWin?.NM_cod_apl || win.parent?.NM_cod_apl;
-      if (cod) return String(cod);
+      if (win.NM_cod_apl) return String(win.NM_cod_apl);
 
-      // 2. Try the tab title
-      let el = document.querySelector('li.nmAbaAppOn > span[id^="sys_aba_page_title_"]') as HTMLElement;
-      if (!el && window.top) {
-        try { el = window.top.document.querySelector('li.nmAbaAppOn > span[id^="sys_aba_page_title_"]') as HTMLElement; } catch {}
-      }
+      const el = document.querySelector('li.nmAbaAppOn > span[id^="sys_aba_page_title_"]') as HTMLElement;
       return el?.innerText?.trim() || null;
-    } catch {
-      return null;
-    }
+    } catch { return null; }
   }
 
   private extractScope(): string | null {
     try {
-      let treeEvent = document.querySelector('#tree_events .selected');
-      if (!treeEvent && window.top) {
-        try { treeEvent = window.top.document.querySelector('#tree_events .selected'); } catch {}
+      // 1. Try the span_tit_ element directly in THIS document
+      const spanTit = document.querySelector('[id^="span_tit_"]') as HTMLElement;
+      if (spanTit) {
+        const text = spanTit.textContent?.trim();
+        if (text) return text;
       }
-      if (treeEvent) return `events/${treeEvent.textContent}`;
 
-      let treeLib = document.querySelector('#tree_libs .selected');
-      if (!treeLib && window.top) {
-        try { treeLib = window.top.document.querySelector('#tree_libs .selected'); } catch {}
+      // 2. Try the tree selection in THIS document
+      const eventsTit = document.getElementById('events_tit');
+      if (eventsTit) {
+        const clicked = eventsTit.querySelector('.jstree-clicked');
+        if (clicked) {
+          return clicked.getAttribute('title') || clicked.textContent?.trim() || null;
+        }
       }
-      if (treeLib) return `libs/${treeLib.textContent}`;
-    } catch {}
 
-    return null;
+      // 3. Brute force in THIS document
+      const clicked = document.querySelector('.jstree-clicked');
+      if (clicked && (clicked.id?.includes('events_') || clicked.closest('#events_tit'))) {
+        return clicked.getAttribute('title') || clicked.textContent?.trim() || null;
+      }
+
+      return null;
+    } catch (e) { return null; }
   }
 
   private extractUser(): string | null {
     try {
-      let el = document.querySelector('.user') as HTMLElement;
-      if (!el && window.top) {
-        try { el = window.top.document.querySelector('.user') as HTMLElement; } catch {}
-      }
+      const el = document.querySelector('.user') as HTMLElement;
       if (!el) return null;
       const text = el.parentElement?.innerText || '';
       return text.split('\n')[0].trim() || null;
-    } catch {
-      return null;
-    }
+    } catch { return null; }
   }
 }
