@@ -14,13 +14,14 @@ const entries = [
 
 async function build() {
   for (const { entry, out } of entries) {
+    const isBackground = entry.includes('background.ts');
     const ctx = await esbuild.context({
       entryPoints: [entry],
       bundle: true,
       outfile: out,
       platform: 'browser',
-      target: 'chrome120',
-      format: 'iife',
+      target: 'chrome100',
+      format: isBackground ? 'esm' : 'iife',
       tsconfig: 'tsconfig.json',
     });
 

@@ -10,61 +10,79 @@ export class SaveInterceptor {
   ) {}
 
   start() {
-    document.addEventListener('keydown', (e) => {
-      if (e.ctrlKey && e.key === 's') {
-        this.handleSave();
+    console.log('SVH: SaveInterceptor starting (Form Intercept Mode)...');
+    
+    // Intercept form submissions
+    document.addEventListener('submit', (e) => {
+      const target = e.target as HTMLFormElement;
+      console.log('SVH: Form submit detected', { action: target.action });
+      
+      if (target.action.includes('event.php')) {
+        this.handleFormSubmit(target);
       }
     }, true);
 
+    // Backup: Intercept clicks on save buttons to capture data even if submit is handled strangely
     document.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
-      if (
-        target.closest('#sc_btn_save') ||
-        target.closest('button[onclick*="salvar"]') ||
-        target.closest('.sc-toolbar-save')
-      ) {
+      if (target.closest('#sc_btn_save') || target.closest('button[onclick*="salvar"]')) {
+        console.log('SVH: Save button clicked');
         this.handleSave();
       }
     }, true);
+  }
 
-    this.patchFetch();
+  private handleFormSubmit(form: HTMLFormElement) {
+    try {
+      const formData = new FormData(form);
+      const code = formData.get('code') as string;
+      const eventName = formData.get('event_nome') as string;
+      const option = formData.get('form_option') as string;
+
+      console.log('SVH: Form data captured', { eventName, option, codeLength: code?.length });
+
+      if (option === 'save' && code) {
+        this.processSave(code, `events/${eventName}`);
+      }
+    } catch (e) {
+      console.error('SVH: Error capturing form data', e);
+    }
   }
 
   private async processSave(content: string, scope?: string) {
+    console.log('SVH: processSave', { scope, length: content.length });
     const ctx = this.resolver.getContext();
-    if (!ctx) {
-      console.warn('SVH: Context not found during save');
-      return;
-    }
-
-    const finalScope = scope || ctx.scope;
-    if (!content || !finalScope || finalScope === 'Unknown') {
-      console.warn('SVH: Missing content or scope', { finalScope });
-      return;
-    }
-
+    
+    // Fallback context if resolver hasn't picked it up yet
+    const finalScope = scope || ctx?.scope || 'Unknown';
+    
     const hash = await this.sha256(content);
-    const key = `${ctx.cod_prj}:${ctx.cod_apl}:${finalScope}`;
+    const key = `${ctx?.cod_prj || 'Unknown'}:${finalScope}`;
 
     if (this.lastHash[key] === hash) return;
     this.lastHash[key] = hash;
 
     const payload = {
-      ...ctx,
+      cod_prj: ctx?.cod_prj || 'Unknown',
+      cod_apl: ctx?.cod_apl || 'Unknown',
+      user_sc_login: ctx?.user_sc_login || 'Unknown',
+      type: (finalScope.startsWith('libs/')) ? 'lib_file' : 'app_event',
       scope: finalScope,
       content,
       hash,
       captured_at: new Date().toISOString(),
-      metadata: { source: scope ? 'network_intercept' : 'dom_capture' },
+      metadata: { source: 'form_submit' },
     };
 
-    console.log('SVH: Sending snapshot...', { scope: finalScope, user: ctx.user_sc_login });
-    chrome.runtime.sendMessage({ type: 'SNAPSHOT', payload });
+    console.log('SVH: Sending snapshot to background...', { scope: finalScope });
+    chrome.runtime.sendMessage({ type: 'SNAPSHOT', payload }).catch(() => {});
   }
 
   private async handleSave() {
     const content = this.bridge.getValue();
-    this.processSave(content);
+    if (content) {
+      this.processSave(content);
+    }
   }
 
   private patchFetch() {

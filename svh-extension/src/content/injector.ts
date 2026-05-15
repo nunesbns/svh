@@ -8,39 +8,50 @@ const bridge = new EditorBridge();
 const interceptor = new SaveInterceptor(resolver, bridge);
 
 function init() {
+  const isTop = window === window.top;
+  const frameId = isTop ? 'TOP' : `FRAME_${Math.random().toString(36).substring(7)}`;
+  
   // Check if we already injected in this window
   if ((window as any).SVH_INITIALIZED) return;
   (window as any).SVH_INITIALIZED = true;
+
+  console.log(`SVH: Initializing in ${frameId}`, { url: window.location.href });
 
   resolver.start();
   bridge.start();
   interceptor.start();
 
-  // Initialize Sidebar UI
-  const sidebarEl = document.createElement('div');
-  sidebarEl.id = 'svh-sidebar';
-  sidebarEl.style.cssText = `
-    position: fixed;
-    top: 0;
-    right: 0;
-    width: 350px;
-    height: 100vh;
-    z-index: 999999;
-    background: #fff;
-    box-shadow: -2px 0 10px rgba(0,0,0,0.1);
-    display: none;
-    flex-direction: column;
-    border-left: 1px solid #ddd;
-    font-family: sans-serif;
-  `;
-  document.body.appendChild(sidebarEl);
-  
-  new Sidebar();
-
-  // Attach SVH Button to #id_main_table
-  const attachButton = () => {
+  // ONLY UI logic
+  const attachUI = () => {
     const target = document.querySelector('#id_main_table');
-    if (!target || document.querySelector('#svh-toggle-btn')) return;
+    if (!target) return;
+    
+    if (document.querySelector('#svh-toggle-btn')) return;
+
+    console.log(`SVH: Found #id_main_table in ${frameId}, attaching button`);
+
+    // Ensure sidebar exists in THIS document if we are attaching the button here
+    let sidebarEl = document.getElementById('svh-sidebar');
+    if (!sidebarEl) {
+      sidebarEl = document.createElement('div');
+      sidebarEl.id = 'svh-sidebar';
+      sidebarEl.style.cssText = `
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 350px;
+        height: 100vh;
+        z-index: 999999;
+        background: #fff;
+        box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+        display: none;
+        flex-direction: column;
+        border-left: 1px solid #ddd;
+        font-family: sans-serif;
+      `;
+      document.body.appendChild(sidebarEl);
+      new Sidebar();
+    }
 
     const toggle = document.createElement('button');
     toggle.id = 'svh-toggle-btn';
@@ -63,20 +74,28 @@ function init() {
     toggle.onclick = (e) => {
       e.preventDefault();
       e.stopPropagation();
-      const isVisible = sidebarEl.style.display === 'flex';
-      sidebarEl.style.display = isVisible ? 'none' : 'flex';
+      const isVisible = sidebarEl!.style.display === 'flex';
+      sidebarEl!.style.display = isVisible ? 'none' : 'flex';
       if (!isVisible) {
         document.dispatchEvent(new CustomEvent('svh:refresh-history'));
       }
     };
 
     target.appendChild(toggle);
-    console.log('SVH: Button attached to #id_main_table');
   };
 
-  const observer = new MutationObserver(() => attachButton());
+  const observer = new MutationObserver(() => attachUI());
   observer.observe(document.body, { childList: true, subtree: true });
-  attachButton();
+  attachUI();
+
+  // Sync context between frames
+  if (isTop) {
+    window.addEventListener('message', (e) => {
+      if (e.data?.type === 'SVH_CONTEXT_UPDATED') {
+        document.dispatchEvent(new CustomEvent('svh:context-updated', { detail: e.data.payload }));
+      }
+    });
+  }
 }
 
 if (document.readyState === 'loading') {

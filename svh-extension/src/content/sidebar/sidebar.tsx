@@ -23,6 +23,10 @@ export class Sidebar {
       type: 'HISTORY', 
       params: { cod_prj, cod_apl, scope } 
     }, (res) => {
+      if (chrome.runtime.lastError) {
+        console.error('SVH: Runtime error during history load', chrome.runtime.lastError);
+        return;
+      }
       if (res?.ok) {
         this.render(res.data);
       }
@@ -63,6 +67,11 @@ export class Sidebar {
 
   private requestRestore(id: string) {
     chrome.runtime.sendMessage({ type: 'RESTORE', snapshotId: id }, (res) => {
+      if (chrome.runtime.lastError) {
+        console.error('SVH: Runtime error during restore', chrome.runtime.lastError);
+        alert('Communication error with background script.');
+        return;
+      }
       if (res?.ok) {
         alert('Restored. Please save on IDE to confirm.');
       }
