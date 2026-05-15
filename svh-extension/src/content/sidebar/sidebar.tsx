@@ -3,9 +3,11 @@ export class Sidebar {
   private currentContext: any = null;
   private historyItems: any[] = [];
   private isLoading: boolean = false;
+  private modalContainer: HTMLElement | null = null;
 
   constructor() {
     this.container = document.getElementById('svh-sidebar')!;
+    this.createModal();
     
     // Initial fetch of context from background
     this.fetchInitialContext();
@@ -29,6 +31,26 @@ export class Sidebar {
       // Re-fetch context from background to be sure before loading history
       this.fetchInitialContext(() => this.loadHistory());
     });
+  }
+
+  private createModal() {
+    this.modalContainer = document.createElement('div');
+    this.modalContainer.id = 'svh-code-modal';
+    this.modalContainer.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(4px);
+      z-index: 1000000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    `;
+    document.body.appendChild(this.modalContainer);
   }
 
   private fetchInitialContext(callback?: () => void) {
@@ -63,6 +85,8 @@ export class Sidebar {
           params: { cod_prj, cod_apl, scope } 
         }, (res) => {
           this.isLoading = false;
+          console.log('SVH Sidebar: History response received:', res);
+
           if (chrome.runtime.lastError) {
             console.warn('SVH: Runtime error during history load', chrome.runtime.lastError.message);
             this.render();
@@ -109,6 +133,74 @@ export class Sidebar {
       }
     }
     return String(val);
+  }
+
+  private highlightCode(code: string): string {
+    // Simple regex-based highlighting for PHP/JS
+    return code
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/(\/\*[\s\S]*?\*\/|\/\/.*)/g, '<span style="color: #6a9955;">$1</span>') // Comments
+      .replace(/("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/g, '<span style="color: #ce9178;">$1</span>') // Strings
+      .replace(/\b(function|return|if|else|for|while|foreach|as|switch|case|break|continue|public|private|protected|class|extends|implements|new|try|catch|finally|throw|use|namespace|var|let|const)\b/g, '<span style="color: #569cd6;">$1</span>') // Keywords
+      .replace(/\b(\$[a-zA-Z_][a-zA-Z0-9_]*)\b/g, '<span style="color: #9cdcfe;">$1</span>') // PHP Variables
+      .replace(/\b(0x[0-9a-fA-F]+|\d+)\b/g, '<span style="color: #b5cea8;">$1</span>'); // Numbers
+  }
+
+  private openModal(snapshot: any) {
+    const code = snapshot.content || '';
+    const highlighted = this.highlightCode(code);
+    const date = this.formatDate(snapshot.captured_at);
+
+    this.modalContainer!.style.display = 'flex';
+    this.modalContainer!.innerHTML = `
+      <div style="width: 90%; height: 90%; background: #1e1e1e; border-radius: 8px; display: flex; flex-direction: column; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); border: 1px solid #333; overflow: hidden;">
+        <div style="padding: 12px 20px; background: #2d2d2d; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333;">
+          <div style="color: #e2e8f0; font-size: 14px;">
+            <span style="font-weight: bold; color: #569cd6;">${snapshot.user_sc_login}</span>
+            <span style="color: #888; margin: 0 8px;">•</span>
+            <span style="color: #aaa;">${date}</span>
+          </div>
+          <div style="display: flex; gap: 12px;">
+            <button id="modal-copy" style="background: #3a3a3a; color: #fff; border: 1px solid #444; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 6px;">
+              <span>📋 Copy</span>
+            </button>
+            <button id="modal-restore" style="background: #2563eb; color: #fff; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">
+              🚀 Restore to Editor
+            </button>
+            <button id="modal-close" style="background: none; border: none; color: #888; cursor: pointer; font-size: 24px; line-height: 1;">&times;</button>
+          </div>
+        </div>
+        <div style="flex: 1; overflow: auto; padding: 20px; position: relative;">
+          <pre style="margin: 0; color: #d4d4d4; font-size: 13px; line-height: 1.5; tab-size: 4; white-space: pre-wrap; word-break: break-all;"><code>${highlighted}</code></pre>
+        </div>
+      </div>
+    `;
+
+    this.modalContainer!.querySelector('#modal-close')?.addEventListener('click', () => {
+      this.modalContainer!.style.display = 'none';
+    });
+
+    this.modalContainer!.querySelector('#modal-copy')?.addEventListener('click', () => {
+      navigator.clipboard.writeText(code).then(() => {
+        const btn = this.modalContainer!.querySelector('#modal-copy span') as HTMLElement;
+        btn.innerText = '✅ Copied!';
+        setTimeout(() => { btn.innerText = '📋 Copy'; }, 2000);
+      });
+    });
+
+    this.modalContainer!.querySelector('#modal-restore')?.addEventListener('click', () => {
+      if (confirm('Deseja restaurar esta versão do código? Isso substituirá o conteúdo atual do editor.')) {
+        this.requestRestore(snapshot.id);
+        this.modalContainer!.style.display = 'none';
+      }
+    });
+
+    // Close on backdrop click
+    this.modalContainer!.onclick = (e) => {
+      if (e.target === this.modalContainer) {
+        this.modalContainer!.style.display = 'none';
+      }
+    };
   }
 
   render() {
@@ -181,10 +273,18 @@ export class Sidebar {
     this.container.querySelectorAll('[data-id]').forEach(el => {
       el.addEventListener('click', () => {
         const id = (el as HTMLElement).dataset.id!;
-        if (confirm('Deseja restaurar esta versão do código? Isso substituirá o conteúdo atual do editor.')) {
-          this.requestRestore(id);
-        }
+        this.fetchSnapshotAndOpenModal(id);
       });
+    });
+  }
+
+  private fetchSnapshotAndOpenModal(id: string) {
+    chrome.runtime.sendMessage({ type: 'RESTORE', snapshotId: id }, (res) => {
+      if (res?.ok) {
+        this.openModal(res.data);
+      } else {
+        alert('Erro ao carregar snapshot: ' + (res?.error || 'Erro desconhecido'));
+      }
     });
   }
 

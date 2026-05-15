@@ -36,6 +36,9 @@ export class DomResolver {
       const scope = this.extractScope();
       const user_sc_login = this.extractUser();
 
+      const spanTit = document.querySelector('[id^="span_tit_"]') as HTMLElement;
+      const isLib = spanTit && spanTit.id.includes('libs');
+
       // Only build a context if we found AT LEAST ONE real piece of info
       if (cod_prj || cod_apl || scope || user_sc_login) {
         const newContext: ScriptcaseContext = {
@@ -43,7 +46,7 @@ export class DomResolver {
           cod_apl: cod_apl || 'Unknown',
           scope: scope || 'Unknown',
           user_sc_login: user_sc_login || 'Unknown',
-          type: (scope && scope.startsWith('libs/')) ? 'lib_file' : 'app_event',
+          type: isLib ? 'lib_file' : 'app_event',
         };
 
         if (JSON.stringify(newContext) !== JSON.stringify(this.context)) {

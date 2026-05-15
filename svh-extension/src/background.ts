@@ -149,6 +149,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'HISTORY') {
     api.getHistory(message.params)
       .then((data) => {
+        console.log('SVH Background: History API raw response:', data);
         try { sendResponse({ ok: true, data }); } catch (e) {}
       })
       .catch((err) => {
@@ -181,7 +182,7 @@ chrome.webRequest.onBeforeRequest.addListener(
             cod_apl: context.cod_apl || 'Unknown',
             user_sc_login: context.user_sc_login || 'Unknown',
             type: 'app_event',
-            scope: eventName ? `events/${eventName}` : (context.scope || 'Unknown'),
+            scope: eventName || (context.scope || 'Unknown'),
             content: code,
             hash: '',
             captured_at: new Date().toISOString(),
