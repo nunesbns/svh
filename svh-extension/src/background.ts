@@ -30,23 +30,26 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'SNAPSHOT') {
     api.sendSnapshot(message.payload)
       .then(() => sendResponse({ ok: true }))
-      .catch(() => sendResponse({ ok: false }));
+      .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
   }
 
   if (message.type === 'RESTORE') {
     api.getSnapshot(message.snapshotId)
       .then((data) => sendResponse({ ok: true, data }))
-      .catch(() => sendResponse({ ok: false }));
+      .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
   }
 
   if (message.type === 'HISTORY') {
     api.getHistory(message.params)
       .then((data) => sendResponse({ ok: true, data }))
-      .catch(() => sendResponse({ ok: false }));
+      .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
   }
+
+  // Fallback for unknown messages
+  sendResponse({ ok: false, error: 'Unknown message type' });
 });
 
 chrome.storage.local.get('outbox').then(({ outbox }) => {

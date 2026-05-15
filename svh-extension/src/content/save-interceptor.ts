@@ -1,5 +1,5 @@
 import { EditorBridge } from './editor-bridge';
-import { DomResolver, ScriptcaseContext } from './dom-resolver';
+import { DomResolver } from './dom-resolver';
 
 export class SaveInterceptor {
   private lastHash: Record<string, string> = {};
@@ -30,28 +30,41 @@ export class SaveInterceptor {
     this.patchFetch();
   }
 
-  private async handleSave() {
+  private async processSave(content: string, scope?: string) {
     const ctx = this.resolver.getContext();
-    if (!ctx) return;
+    if (!ctx) {
+      console.warn('SVH: Context not found during save');
+      return;
+    }
 
-    const content = this.bridge.getValue();
-    if (!content) return;
+    const finalScope = scope || ctx.scope;
+    if (!content || !finalScope || finalScope === 'Unknown') {
+      console.warn('SVH: Missing content or scope', { finalScope });
+      return;
+    }
 
     const hash = await this.sha256(content);
-    const key = `${ctx.cod_prj}:${ctx.cod_apl}:${ctx.scope}`;
+    const key = `${ctx.cod_prj}:${ctx.cod_apl}:${finalScope}`;
 
     if (this.lastHash[key] === hash) return;
     this.lastHash[key] = hash;
 
     const payload = {
       ...ctx,
+      scope: finalScope,
       content,
       hash,
       captured_at: new Date().toISOString(),
-      metadata: {},
+      metadata: { source: scope ? 'network_intercept' : 'dom_capture' },
     };
 
+    console.log('SVH: Sending snapshot...', { scope: finalScope, user: ctx.user_sc_login });
     chrome.runtime.sendMessage({ type: 'SNAPSHOT', payload });
+  }
+
+  private async handleSave() {
+    const content = this.bridge.getValue();
+    this.processSave(content);
   }
 
   private patchFetch() {
@@ -62,6 +75,12 @@ export class SaveInterceptor {
 
     window.addEventListener('message', (e) => {
       if (e.source !== window) return;
+      
+      if (e.data?.type === 'SVH_SAVE_DATA') {
+        const { code, scope } = e.data.payload;
+        this.processSave(code, scope);
+      }
+
       if (e.data?.type === 'SVH_SAVE_DETECTED') {
         this.handleSave();
       }

@@ -30,35 +30,31 @@ export class DomResolver {
     const scope = this.extractScope();
     const user_sc_login = this.extractUser();
 
-    if (cod_prj && cod_apl && scope && user_sc_login) {
-      this.context = {
-        cod_prj,
-        cod_apl,
-        scope,
-        user_sc_login,
-        type: scope.startsWith('libs/') ? 'lib_file' : 'app_event',
+    if (cod_prj || cod_apl || scope || user_sc_login) {
+      const newContext: ScriptcaseContext = {
+        cod_prj: cod_prj || 'Unknown',
+        cod_apl: cod_apl || 'Unknown',
+        scope: scope || 'Unknown',
+        user_sc_login: user_sc_login || 'Unknown',
+        type: (scope && scope.startsWith('libs/')) ? 'lib_file' : 'app_event',
       };
+
+      if (JSON.stringify(newContext) !== JSON.stringify(this.context)) {
+        this.context = newContext;
+        console.log('SVH: Context detected:', this.context);
+        document.dispatchEvent(new CustomEvent('svh:context-updated', { detail: this.context }));
+      }
     }
   }
 
   private extractCodPrj(): string | null {
-    const el = document.querySelector('[data-project]');
-    if (el) return el.getAttribute('data-project');
-    try {
-      return (window as any).parent?.NM_cod_prj || null;
-    } catch {
-      return null;
-    }
+    const el = document.querySelector('#project_tooltip .project') as HTMLElement;
+    return el?.innerText?.trim() || null;
   }
 
   private extractCodApl(): string | null {
-    const el = document.querySelector('[data-app-id]');
-    if (el) return el.getAttribute('data-app-id');
-    try {
-      return (window as any).NM_cod_apl || null;
-    } catch {
-      return null;
-    }
+    const el = document.querySelector('li.nmAbaAppOn > span[id^="sys_aba_page_title_"]') as HTMLElement;
+    return el?.innerText?.trim() || null;
   }
 
   private extractScope(): string | null {
@@ -68,26 +64,13 @@ export class DomResolver {
     const treeLib = document.querySelector('#tree_libs .selected');
     if (treeLib) return `libs/${treeLib.textContent}`;
 
-    const iframe = document.querySelector('iframe[id^="frm_sc_code"]') as HTMLIFrameElement;
-    if (iframe?.src) {
-      const url = new URL(iframe.src);
-      return url.searchParams.get('event') || url.searchParams.get('lib');
-    }
-
     return null;
   }
 
   private extractUser(): string | null {
-    const el = document.querySelector('#sc_user_logged');
-    if (el) return el.textContent?.trim() || null;
-
-    try {
-      const match = document.cookie.match(/sc_session_user=([^;]+)/);
-      if (match) return decodeURIComponent(match[1]);
-    } catch {
-      return null;
-    }
-
-    return null;
+    const el = document.querySelector('.user') as HTMLElement;
+    if (!el) return null;
+    const text = el.parentElement?.innerText || '';
+    return text.split('\n')[0].trim() || null;
   }
 }
