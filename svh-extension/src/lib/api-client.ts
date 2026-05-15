@@ -80,6 +80,25 @@ export class ApiClient {
     return res.json();
   }
 
+  async getRawDiff(snapshotId: string, content: string): Promise<any> {
+    const base = await this.baseUrl();
+    if (!base) throw new Error('API URL not configured');
+
+    const url = `${base}/api/v1/diff/raw`;
+    const headers = await this.headers();
+    const payload = { snapshot_id: snapshotId, content };
+    await this.logRequest('POST', url, headers, payload);
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
   async getSnapshot(id: string): Promise<any> {
     const base = await this.baseUrl();
     if (!base) throw new Error('API URL not configured');

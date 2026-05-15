@@ -116,6 +116,15 @@ function init() {
       if (e.data?.type === 'SVH_CONTEXT_UPDATED') {
         document.dispatchEvent(new CustomEvent('svh:context-updated', { detail: e.data.payload }));
       }
+      
+      if (e.data?.type === 'SVH_RESTORE_CONTENT') {
+        if (bridge) bridge.setValue(e.data.payload);
+      }
+
+      if (e.data?.type === 'SVH_GET_EDITOR_VALUE') {
+        const val = bridge ? bridge.getValue() : '';
+        window.postMessage({ type: 'SVH_EDITOR_VALUE_RESULT', payload: val }, '*');
+      }
     });
   }
 }

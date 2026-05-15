@@ -45,6 +45,18 @@ async function build() {
     fs.mkdirSync('dist/inject', { recursive: true });
   }
   fs.copyFileSync('inject/fetch-patch.js', 'dist/inject/fetch-patch.js');
+
+  // Copy vendor folder
+  if (fs.existsSync('src/vendor')) {
+    if (!fs.existsSync('dist/vendor')) {
+      fs.mkdirSync('dist/vendor', { recursive: true });
+    }
+    const vendorFiles = fs.readdirSync('src/vendor');
+    for (const file of vendorFiles) {
+      fs.copyFileSync(path.join('src/vendor', file), path.join('dist/vendor', file));
+      console.log(`Copied vendor asset: ${file}`);
+    }
+  }
 }
 
 build().catch((e) => {

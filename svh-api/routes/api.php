@@ -16,6 +16,7 @@ Route::prefix('v1')
         Route::get('/snapshots/{id}', [SnapshotController::class, 'show']);
         Route::post('/presence', [PresenceController::class, 'store']);
         Route::get('/history', [HistoryController::class, 'index']);
+        Route::post('/diff/raw', [DiffController::class, 'raw']);
         Route::get('/diff/{a}/{b}', [DiffController::class, 'show']);
         Route::post('/restore', [RestoreController::class, 'store']);
     });

@@ -134,6 +134,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; 
   }
 
+  if (message.type === 'RAW_DIFF') {
+    api.getRawDiff(message.snapshotId, message.content)
+      .then((data) => {
+        try { sendResponse({ ok: true, data }); } catch (e) {}
+      })
+      .catch((err) => {
+        console.error('SVH: Raw Diff error', err);
+        try { sendResponse({ ok: false, error: err.message || 'Unknown error' }); } catch (e) {}
+      });
+    return true;
+  }
+
   if (message.type === 'RESTORE') {
     api.getSnapshot(message.snapshotId)
       .then((data) => {

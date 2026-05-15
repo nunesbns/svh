@@ -17,37 +17,27 @@ class DiffService
         $this->differ = new Differ($builder);
     }
 
-    public function compute(string $a, string $b): array
+    public function computeRaw(string $snapshotId, string $rawContent): array
     {
-        $cacheKey = "diff:{$a}:{$b}";
-        $cached = Redis::get($cacheKey);
+        $snapshot = HistorySnapshot::findOrFail($snapshotId);
 
-        if ($cached) {
-            return json_decode($cached, true);
-        }
-
-        $snapshotA = HistorySnapshot::findOrFail($a);
-        $snapshotB = HistorySnapshot::findOrFail($b);
-
+        // Normalize whitespace for comparison if needed, 
+        // but typically unified diff shows the actual changes.
+        // To truly ignore whitespace in the diff algorithm with sebastian/diff,
+        // we can pre-process lines or use a custom differ if available.
+        // For now, let's just do a standard diff.
+        
         $diff = $this->differ->diff(
-            $snapshotA->content_blob,
-            $snapshotB->content_blob
+            $snapshot->content_blob,
+            $rawContent
         );
 
-        $result = [
-            'a' => [
-                'id' => $snapshotA->id,
-                'captured_at' => $snapshotA->captured_at,
-            ],
-            'b' => [
-                'id' => $snapshotB->id,
-                'captured_at' => $snapshotB->captured_at,
+        return [
+            'snapshot' => [
+                'id' => $snapshot->id,
+                'captured_at' => $snapshot->captured_at,
             ],
             'diff' => $diff,
         ];
-
-        Redis::setex($cacheKey, 3600, json_encode($result));
-
-        return $result;
     }
-}
+
