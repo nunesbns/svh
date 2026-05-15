@@ -19,18 +19,24 @@ export class Sidebar {
     if (!this.currentContext) return;
     
     const { cod_prj, cod_apl, scope } = this.currentContext;
-    chrome.runtime.sendMessage({ 
-      type: 'HISTORY', 
-      params: { cod_prj, cod_apl, scope } 
-    }, (res) => {
-      if (chrome.runtime.lastError) {
-        console.error('SVH: Runtime error during history load', chrome.runtime.lastError);
-        return;
+    try {
+      if (typeof chrome !== 'undefined' && chrome.runtime?.id) {
+        chrome.runtime.sendMessage({ 
+          type: 'HISTORY', 
+          params: { cod_prj, cod_apl, scope } 
+        }, (res) => {
+          if (chrome.runtime.lastError) {
+            console.warn('SVH: Runtime error during history load', chrome.runtime.lastError.message);
+            return;
+          }
+          if (res?.ok) {
+            this.render(res.data);
+          }
+        });
       }
-      if (res?.ok) {
-        this.render(res.data);
-      }
-    });
+    } catch (e) {
+      // Context invalidated or other runtime issue
+    }
   }
 
   render(items: any[] = []) {

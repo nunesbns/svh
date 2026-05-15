@@ -3,26 +3,48 @@ import { EditorBridge } from './editor-bridge';
 import { SaveInterceptor } from './save-interceptor';
 import { Sidebar } from './sidebar/sidebar';
 
-const resolver = new DomResolver();
-const bridge = new EditorBridge();
-const interceptor = new SaveInterceptor(resolver, bridge);
+let resolver: DomResolver | null = null;
+let bridge: EditorBridge | null = null;
+let interceptor: SaveInterceptor | null = null;
+
+function isContextValid() {
+  return typeof chrome !== 'undefined' && chrome.runtime && !!chrome.runtime.id;
+}
 
 function init() {
+  if (!isContextValid()) return;
+
   const isTop = window === window.top;
   const frameId = isTop ? 'TOP' : `FRAME_${Math.random().toString(36).substring(7)}`;
   
-  // Check if we already injected in this window
   if ((window as any).SVH_INITIALIZED) return;
   (window as any).SVH_INITIALIZED = true;
 
   console.log(`SVH: Initializing in ${frameId}`, { url: window.location.href });
 
+  resolver = new DomResolver();
+  bridge = new EditorBridge();
+  interceptor = new SaveInterceptor(resolver, bridge);
+
   resolver.start();
   bridge.start();
   interceptor.start();
 
+  // Self-destruct logic: if extension is reloaded, stop everything
+  const checkInterval = setInterval(() => {
+    if (!isContextValid()) {
+      console.log(`SVH: Context invalidated in ${frameId}, cleaning up...`);
+      clearInterval(checkInterval);
+      resolver?.stop();
+      bridge?.stop();
+      // Add more cleanup if needed
+      (window as any).SVH_INITIALIZED = false;
+    }
+  }, 2000);
+
   // ONLY UI logic
   const attachUI = () => {
+    if (!isContextValid()) return;
     const target = document.querySelector('#id_main_table');
     if (!target) return;
     
@@ -30,7 +52,6 @@ function init() {
 
     console.log(`SVH: Found #id_main_table in ${frameId}, attaching button`);
 
-    // Ensure sidebar exists in THIS document if we are attaching the button here
     let sidebarEl = document.getElementById('svh-sidebar');
     if (!sidebarEl) {
       sidebarEl = document.createElement('div');
@@ -88,7 +109,6 @@ function init() {
   observer.observe(document.body, { childList: true, subtree: true });
   attachUI();
 
-  // Sync context between frames
   if (isTop) {
     window.addEventListener('message', (e) => {
       if (e.data?.type === 'SVH_CONTEXT_UPDATED') {

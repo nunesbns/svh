@@ -36,6 +36,9 @@ export class DomResolver {
 
   private resolve() {
     try {
+      // Check if context is valid before proceeding
+      if (!chrome.runtime?.id) return;
+
       const cod_prj = this.extractCodPrj();
       const cod_apl = this.extractCodApl();
       const scope = this.extractScope();
@@ -53,18 +56,34 @@ export class DomResolver {
         if (JSON.stringify(newContext) !== JSON.stringify(this.context)) {
           this.context = newContext;
           console.log('SVH: Context detected:', this.context);
-          document.dispatchEvent(new CustomEvent('svh:context-updated', { detail: this.context }));
           
-          // Notify background about current context for webRequest resolution
-          chrome.runtime.sendMessage({ type: 'SET_CONTEXT', payload: this.context }).catch(() => {});
-
+          // Only dispatch and notify if we have at least SOME real data
+          if (newContext.cod_prj !== 'Unknown' || newContext.cod_apl !== 'Unknown') {
+            document.dispatchEvent(new CustomEvent('svh:context-updated', { detail: this.context }));
+            
+            // Notify background - wrap in try/catch for invalidated context
+            try {
+              if (chrome.runtime?.id) {
+                chrome.runtime.sendMessage({ type: 'SET_CONTEXT', payload: this.context }).catch(() => {
+                  // Ignore errors after context invalidation
+                });
+              }
+            } catch (e) {
+              // Context invalidated
+            }
+          }
+          
           // Notify top window to update sidebar
           if (window !== window.top) {
-            window.top!.postMessage({ type: 'SVH_CONTEXT_UPDATED', payload: this.context }, '*');
+            try {
+              window.top!.postMessage({ type: 'SVH_CONTEXT_UPDATED', payload: this.context }, '*');
+            } catch (e) {}
           }
         }
       }
     } catch (e) {
+      // Don't log if it's just the context invalidation error
+      if (e instanceof Error && e.message.includes('context invalidated')) return;
       console.error('SVH: Error resolving context', e);
     }
   }
