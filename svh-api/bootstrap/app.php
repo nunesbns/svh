@@ -16,6 +16,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'api_key' => \App\Http\Middleware\ApiKeyGuard::class,
             'force_https' => \App\Http\Middleware\ForceHttps::class,
         ]);
+
+        $middleware->appendToGroup('api', [
+            \App\Http\Middleware\ApiErrorLoggerMiddleware::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
