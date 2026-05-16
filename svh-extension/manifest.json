@@ -20,7 +20,8 @@
     "resources": [
       "inject/fetch-patch.js",
       "inject/editor-bridge-main.js",
-      "vendor/diff2html.min.css"
+      "vendor/diff2html.min.css",
+      "vendor/highlight-github.min.css"
     ],
     "matches": ["<all_urls>"]
   }]

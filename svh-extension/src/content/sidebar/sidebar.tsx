@@ -1,4 +1,18 @@
-import { html as diff2htmlHtml } from 'diff2html';
+import { Diff2HtmlUI } from 'diff2html/lib/ui/js/diff2html-ui-base';
+import hljs from 'highlight.js/lib/core';
+import phpLang from 'highlight.js/lib/languages/php';
+import xmlLang from 'highlight.js/lib/languages/xml';
+import javascriptLang from 'highlight.js/lib/languages/javascript';
+
+// Register only the languages we care about. Smaller bundle, predictable
+// detection (highlight.js auto-detect can pick odd languages on short
+// snippets if too many are loaded).
+hljs.registerLanguage('php', phpLang);
+hljs.registerLanguage('xml', xmlLang); // also covers HTML
+hljs.registerLanguage('html', xmlLang);
+hljs.registerLanguage('javascript', javascriptLang);
+hljs.registerLanguage('js', javascriptLang);
+hljs.configure({ languages: ['php', 'xml', 'html', 'javascript', 'js'] });
 
 export class Sidebar {
   private container: HTMLElement;
@@ -42,6 +56,35 @@ export class Sidebar {
       css.rel = 'stylesheet';
       css.href = chrome.runtime.getURL('vendor/diff2html.min.css');
       document.head.appendChild(css);
+    }
+
+    // Highlight.js theme for syntax-coloring code inside the diff.
+    if (!document.getElementById('svh-hljs-css')) {
+      const css = document.createElement('link');
+      css.id = 'svh-hljs-css';
+      css.rel = 'stylesheet';
+      css.href = chrome.runtime.getURL('vendor/highlight-github.min.css');
+      document.head.appendChild(css);
+    }
+
+    // Override: highlight.js themes set `.hljs { background: #fff }`, which
+    // would erase diff2html's red/green row tinting. Strip the background
+    // (and any padding/display the theme tries to enforce) when .hljs is
+    // applied inside a diff line.
+    if (!document.getElementById('svh-hljs-override')) {
+      const style = document.createElement('style');
+      style.id = 'svh-hljs-override';
+      style.textContent = `
+        .d2h-code-line-ctn.hljs,
+        .d2h-code-line .hljs,
+        .d2h-code-side-line .hljs {
+          background: transparent !important;
+          padding: 0 !important;
+          display: inline !important;
+          color: inherit;
+        }
+      `;
+      document.head.appendChild(style);
     }
   }
 
@@ -199,14 +242,23 @@ export class Sidebar {
     } else {
       try {
         const diffInput = this.normalizeDiff(diffData.diff);
-        const renderedHtml = diff2htmlHtml(diffInput, {
+        console.log('SVH Sidebar: rendering diff with hljs', { hljsAvailable: !!hljs, listed: hljs.listLanguages() });
+        const ui = new Diff2HtmlUI(diffTarget, diffInput, {
           drawFileList: false,
           matching: 'lines',
           outputFormat: 'side-by-side',
           renderNothingWhenEmpty: false,
+          highlight: true,
+        }, hljs);
+        ui.draw();
+        // Inspect what diff2html generated.
+        const fileWrappers = diffTarget.querySelectorAll('.d2h-file-wrapper');
+        fileWrappers.forEach((fw, i) => {
+          console.log(`SVH Sidebar: file wrapper ${i} data-lang="${fw.getAttribute('data-lang')}"`);
         });
-        diffTarget.innerHTML = renderedHtml;
-        // Hide diff2html's own file header (we already show our own column legend above).
+        ui.highlightCode();
+        const highlightedLines = diffTarget.querySelectorAll('.hljs').length;
+        console.log(`SVH Sidebar: ${highlightedLines} lines received the .hljs class`);
         diffTarget.querySelectorAll('.d2h-file-header').forEach((el) => {
           (el as HTMLElement).style.display = 'none';
         });
@@ -244,13 +296,13 @@ export class Sidebar {
 
   /**
    * Ensures the unified diff string starts with a `diff --git` style header,
-   * which diff2html uses to identify a single file. The backend currently
-   * emits only `--- a / +++ b` headers, which diff2html accepts but renders
-   * with an empty filename.
+   * which makes diff2html attach a stable file id. The backend now emits
+   * `--- a/editor.php / +++ b/snapshot.php`, so an extra `diff --git` line
+   * is purely cosmetic but harmless.
    */
   private normalizeDiff(rawDiff: string): string {
     if (rawDiff.startsWith('diff --git')) return rawDiff;
-    return `diff --git a/snapshot b/editor\n${rawDiff}`;
+    return `diff --git a/editor.php b/snapshot.php\n${rawDiff}`;
   }
 
   private async copyToClipboard(text: string) {

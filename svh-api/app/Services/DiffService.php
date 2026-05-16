@@ -19,10 +19,10 @@ class DiffService
         // side-by-side view.
         //
         // The diff is computed with the live editor on the LEFT and the
-        // saved snapshot on the RIGHT, so that the snapshot the user is
-        // about to restore appears on the right side of the modal — the
-        // direction users expect when comparing "current" vs "incoming".
-        $builder = new UnifiedDiffOutputBuilder("--- editor\n+++ snapshot\n", true);
+        // saved snapshot on the RIGHT. The header uses `.php` filenames so
+        // diff2html parses a file extension and exposes it as `data-lang`,
+        // letting highlight.js apply syntax coloring.
+        $builder = new UnifiedDiffOutputBuilder("--- a/editor.php\n+++ b/snapshot.php\n", true);
         $this->differ = new Differ($builder);
     }
 
