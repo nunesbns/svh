@@ -36,7 +36,11 @@ export class SaveInterceptor {
     try {
       const formData = new FormData(form);
       const code = formData.get('code') as string;
-      const eventName = formData.get('event_nome') as string;
+      // Scriptcase truncates `event_nome` (e.g. "onScriptInit" -> "onInit"),
+      // but `event_title` keeps the canonical event name. Prefer the title
+      // and fall back to `event_nome` for older layouts.
+      const eventName = (formData.get('event_title') as string)
+        || (formData.get('event_nome') as string);
       const option = formData.get('form_option') as string;
 
       console.log('SVH: Form data captured', { eventName, option, codeLength: code?.length });

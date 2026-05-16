@@ -111,6 +111,7 @@ function init() {
   observer.observe(document.body, { childList: true, subtree: true });
   attachUI();
 
+  // Top frame: dispatch context updates as a custom DOM event for the sidebar.
   if (isTop) {
     window.addEventListener('message', (e) => {
       if (e.data?.type === 'SVH_CONTEXT_UPDATED') {
@@ -118,6 +119,36 @@ function init() {
       }
     });
   }
+
+  // Editor bridge messages must be handled in EVERY frame, because the
+  // Scriptcase code editor lives inside a nested iframe and only that
+  // frame can read/write `window.editor`. The frame that holds the editor
+  // answers; the others stay silent.
+  window.addEventListener('message', (e) => {
+    if (e.data?.type === 'SVH_GET_EDITOR_VALUE') {
+      if (!bridge?.hasEditor()) return;
+      const val = bridge.getValue();
+      const normalized = typeof val === 'string' ? val : '';
+      console.log(`SVH Injector [${frameId}]: responding to GET_EDITOR_VALUE, length=${normalized.length}`);
+      // Reply via the top window so the sidebar listener (which is in top) hears it.
+      try {
+        window.top?.postMessage({ type: 'SVH_EDITOR_VALUE_RESULT', payload: normalized }, '*');
+      } catch {
+        window.postMessage({ type: 'SVH_EDITOR_VALUE_RESULT', payload: normalized }, '*');
+      }
+    }
+
+    if (e.data?.type === 'SVH_RESTORE_CONTENT') {
+      if (!bridge?.hasEditor()) return;
+      const ok = bridge.setValue(e.data.payload ?? '');
+      console.log(`SVH Injector [${frameId}]: SVH_RESTORE_CONTENT applied=${ok}`);
+      try {
+        window.top?.postMessage({ type: 'SVH_RESTORE_CONTENT_RESULT', ok }, '*');
+      } catch {
+        window.postMessage({ type: 'SVH_RESTORE_CONTENT_RESULT', ok }, '*');
+      }
+    }
+  });
 }
 
 if (document.readyState === 'loading') {

@@ -18,4 +18,19 @@ class DiffController extends Controller
 
         return response()->json($diff);
     }
+
+    public function raw(\Illuminate\Http\Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'snapshot_id' => 'required|uuid',
+            'content' => 'present|string|nullable',
+        ]);
+
+        $diff = $this->diffService->computeRaw(
+            $validated['snapshot_id'],
+            $validated['content'] ?? '',
+        );
+
+        return response()->json($diff);
+    }
 }

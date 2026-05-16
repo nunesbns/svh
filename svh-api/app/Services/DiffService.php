@@ -3,9 +3,9 @@
 namespace App\Services;
 
 use App\Models\HistorySnapshot;
+use Illuminate\Support\Facades\Redis;
 use SebastianBergmann\Diff\Differ;
 use SebastianBergmann\Diff\Output\UnifiedDiffOutputBuilder;
-use Illuminate\Support\Facades\Redis;
 
 class DiffService
 {
@@ -17,6 +17,9 @@ class DiffService
         $this->differ = new Differ($builder);
     }
 
+    /**
+     * Compute a diff between two persisted snapshots (cached in Redis).
+     */
     public function compute(string $a, string $b): array
     {
         $cacheKey = "diff:{$a}:{$b}";
@@ -30,8 +33,8 @@ class DiffService
         $snapshotB = HistorySnapshot::findOrFail($b);
 
         $diff = $this->differ->diff(
-            $snapshotA->content_blob,
-            $snapshotB->content_blob
+            (string) $snapshotA->content_blob,
+            (string) $snapshotB->content_blob,
         );
 
         $result = [
@@ -49,5 +52,27 @@ class DiffService
         Redis::setex($cacheKey, 3600, json_encode($result));
 
         return $result;
+    }
+
+    /**
+     * Compute a diff between a persisted snapshot and the current editor content.
+     * Not cached because the right-hand side comes from the user's live buffer.
+     */
+    public function computeRaw(string $snapshotId, string $rawContent): array
+    {
+        $snapshot = HistorySnapshot::findOrFail($snapshotId);
+
+        $diff = $this->differ->diff(
+            (string) $snapshot->content_blob,
+            (string) $rawContent,
+        );
+
+        return [
+            'snapshot' => [
+                'id' => $snapshot->id,
+                'captured_at' => $snapshot->captured_at,
+            ],
+            'diff' => $diff,
+        ];
     }
 }

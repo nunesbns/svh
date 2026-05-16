@@ -57,13 +57,10 @@ COPY docker/entrypoint.sh         /usr/local/bin/entrypoint
 RUN chmod +x /usr/local/bin/entrypoint
 
 # Otimizações Laravel 12 em build
+# Caches (config/route/event/view) são gerados em runtime pelo entrypoint,
+# garantindo que .env e APP_KEY já estejam disponíveis.
 RUN mkdir -p resources/views storage/framework/{cache,sessions,testing,views} bootstrap/cache \
- && chown -R www-data:www-data storage bootstrap/cache \
- && php artisan storage:link || true \
- && php artisan event:cache \
- && php artisan view:cache || true \
- && php artisan route:cache \
- && php artisan config:cache
+ && chown -R www-data:www-data storage bootstrap/cache
 
 LABEL org.opencontainers.image.title="Scriptcase Versioning Hub" \
       org.opencontainers.image.version="${APP_VERSION}" \
