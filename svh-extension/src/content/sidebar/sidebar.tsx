@@ -172,9 +172,20 @@ export class Sidebar {
             <span>${this.escapeHtml(date)}</span>
           </div>
           <div style="display: flex; gap: 12px;">
-            <button id="modal-copy" style="background: #334155; color: #fff; border: 1px solid #475569; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;">📋 Copiar Código</button>
-            <button id="modal-restore" style="background: #2563eb; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600;">🚀 Restaurar para o Editor</button>
+            <button id="modal-copy" style="background: #334155; color: #fff; border: 1px solid #475569; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;">📋 Copy code</button>
+            <button id="modal-restore" style="background: #2563eb; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600;">🚀 Restore to editor</button>
             <button id="modal-close" style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 28px; line-height: 1;">&times;</button>
+          </div>
+        </div>
+        <div style="display: flex; background: #f1f5f9; border-bottom: 1px solid #e2e8f0; font-size: 12px; font-weight: 600; color: #1e293b;">
+          <div style="flex: 1; padding: 8px 16px; border-right: 1px solid #e2e8f0; display: flex; align-items: center; gap: 8px;">
+            <span style="display: inline-block; width: 8px; height: 8px; background: #f87171; border-radius: 50%;"></span>
+            Editor · Current on-screen content
+          </div>
+          <div style="flex: 1; padding: 8px 16px; display: flex; align-items: center; gap: 8px;">
+            <span style="display: inline-block; width: 8px; height: 8px; background: #4ade80; border-radius: 50%;"></span>
+            API · Saved snapshot
+            <span style="font-weight: 400; color: #64748b;">${this.escapeHtml(this.formatDate(snapshot.captured_at))}</span>
           </div>
         </div>
         <div id="diff-target" style="flex: 1; overflow: auto; background: #f8fafc; padding: 0;"></div>
@@ -184,10 +195,9 @@ export class Sidebar {
     const diffTarget = this.modalContainer!.querySelector('#diff-target') as HTMLElement;
 
     if (!diffData?.diff || !this.hasRealHunks(diffData.diff)) {
-      diffTarget.innerHTML = `<div style="padding:40px;text-align:center;color:#64748b;">Nenhuma diferença detectada entre o snapshot e o conteúdo atual do editor.</div>`;
+      diffTarget.innerHTML = `<div style="padding:40px;text-align:center;color:#64748b;">No differences detected between the snapshot and the current editor content.</div>`;
     } else {
       try {
-        // Ensure the diff has a header line so diff2html identifies the file.
         const diffInput = this.normalizeDiff(diffData.diff);
         const renderedHtml = diff2htmlHtml(diffInput, {
           drawFileList: false,
@@ -196,9 +206,13 @@ export class Sidebar {
           renderNothingWhenEmpty: false,
         });
         diffTarget.innerHTML = renderedHtml;
+        // Hide diff2html's own file header (we already show our own column legend above).
+        diffTarget.querySelectorAll('.d2h-file-header').forEach((el) => {
+          (el as HTMLElement).style.display = 'none';
+        });
       } catch (err) {
         console.error('SVH Sidebar: error rendering diff', err);
-        diffTarget.innerHTML = `<div style="padding:40px;text-align:center;color:#dc2626;">Erro ao renderizar o diff.</div>`;
+        diffTarget.innerHTML = `<div style="padding:40px;text-align:center;color:#dc2626;">Failed to render diff.</div>`;
       }
     }
 
@@ -255,7 +269,7 @@ export class Sidebar {
       const btn = this.modalContainer!.querySelector('#modal-copy') as HTMLElement;
       if (btn) {
         const oldText = btn.innerText;
-        btn.innerText = successful ? '✅ Copiado!' : '❌ Erro ao copiar';
+        btn.innerText = successful ? '✅ Copied!' : '❌ Failed to copy';
         setTimeout(() => { btn.innerText = oldText; }, 2000);
       }
     } catch (err) {
@@ -264,7 +278,7 @@ export class Sidebar {
   }
 
   private requestRestore(content: string) {
-    if (!confirm('Deseja restaurar esta versão do código? Isso substituirá o conteúdo atual do editor.')) {
+    if (!confirm('Restore this version of the code? It will replace the current editor content.')) {
       return;
     }
 
@@ -276,9 +290,8 @@ export class Sidebar {
         clearTimeout(timeoutId);
         if (e.data.ok) {
           this.modalContainer!.style.display = 'none';
-          alert('Conteúdo restaurado! Salve para confirmar.');
         } else {
-          alert('Não foi possível aplicar o conteúdo no editor. Verifique se o editor está visível.');
+          alert('Could not apply content to the editor. Make sure the editor is visible.');
         }
       }
     };
@@ -287,7 +300,7 @@ export class Sidebar {
     const timeoutId = window.setTimeout(() => {
       if (acknowledged) return;
       window.removeEventListener('message', ackListener);
-      alert('Tempo esgotado ao restaurar. O editor pode estar oculto ou indisponível.');
+      alert('Timed out while restoring. The editor may be hidden or unavailable.');
     }, 2000);
 
     this.broadcastToFrames({ type: 'SVH_RESTORE_CONTENT', payload: content });
@@ -314,7 +327,7 @@ export class Sidebar {
       <div style="flex:1; overflow-y:auto; background:#f8fafc; display:flex; flex-direction:column;">
         ${this.isLoading ? `
           <div style="padding:40px; text-align:center; color:#64748b;">
-            <div style="margin-bottom:8px;">Carregando...</div>
+            <div style="margin-bottom:8px;">Loading...</div>
           </div>
         ` : `
           <div style="padding:12px; font-size:11px; font-weight:bold; color:#475569; background:#f1f5f9; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
@@ -330,12 +343,12 @@ export class Sidebar {
                     <div style="font-weight:600; font-size:13px; color:#1e293b; margin-bottom:2px;">${this.escapeHtml(i.user_sc_login)}</div>
                     <div style="font-size:11px; color:#64748b;">${this.escapeHtml(this.formatDate(i.captured_at))}</div>
                   </div>
-                  ${loading ? `<div class="svh-spinner" aria-label="Carregando"></div>` : ''}
+                  ${loading ? `<div class="svh-spinner" aria-label="Loading"></div>` : ''}
                 </div>
               `;
             }).join('') : `
               <div style="padding:40px 20px; color:#94a3b8; text-align:center;">
-                <div style="font-size:13px;">Nenhum snapshot encontrado para este escopo.</div>
+                <div style="font-size:13px;">No snapshots found for this scope.</div>
               </div>
             `}
           </div>
@@ -417,13 +430,13 @@ export class Sidebar {
     chrome.runtime.sendMessage({ type: 'RAW_DIFF', snapshotId, content: currentContent ?? '' }, (res) => {
       if (chrome.runtime.lastError) {
         console.error('SVH: Runtime error during diff load', chrome.runtime.lastError.message);
-        alert('Erro de comunicação com a extensão.');
+        alert('Extension communication error.');
         this.setLoadingItem(null);
         return;
       }
       if (!res?.ok) {
         console.error('SVH: API error generating diff', res?.error);
-        alert('Erro ao gerar o diff: ' + (res?.error || 'Erro desconhecido'));
+        alert('Failed to generate diff: ' + (res?.error || 'Unknown error'));
         this.setLoadingItem(null);
         return;
       }
@@ -433,14 +446,14 @@ export class Sidebar {
         this.setLoadingItem(null);
         if (chrome.runtime.lastError) {
           console.error('SVH: Runtime error during snapshot fetch', chrome.runtime.lastError.message);
-          alert('Erro de comunicação com a extensão.');
+          alert('Extension communication error.');
           return;
         }
         if (snapRes?.ok) {
           this.openModal(snapRes.data, diffData);
         } else {
           console.error('SVH: API error loading snapshot', snapRes?.error);
-          alert('Erro ao carregar snapshot: ' + (snapRes?.error || 'Erro desconhecido'));
+          alert('Failed to load snapshot: ' + (snapRes?.error || 'Unknown error'));
         }
       });
     });

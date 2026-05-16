@@ -13,7 +13,16 @@ class DiffService
 
     public function __construct()
     {
-        $builder = new UnifiedDiffOutputBuilder("--- a\n+++ b\n", false);
+        // The second argument (`addLineNumbers`) makes the builder emit
+        // proper `@@ -1,5 +1,5 @@` hunk headers, which are required for
+        // diff2html to correctly identify changed regions and produce a
+        // side-by-side view.
+        //
+        // The diff is computed with the live editor on the LEFT and the
+        // saved snapshot on the RIGHT, so that the snapshot the user is
+        // about to restore appears on the right side of the modal — the
+        // direction users expect when comparing "current" vs "incoming".
+        $builder = new UnifiedDiffOutputBuilder("--- editor\n+++ snapshot\n", true);
         $this->differ = new Differ($builder);
     }
 
@@ -33,8 +42,8 @@ class DiffService
         $snapshotB = HistorySnapshot::findOrFail($b);
 
         $diff = $this->differ->diff(
-            (string) $snapshotA->content_blob,
-            (string) $snapshotB->content_blob,
+            $this->normalizeLineEndings((string) $snapshotA->content_blob),
+            $this->normalizeLineEndings((string) $snapshotB->content_blob),
         );
 
         $result = [
@@ -55,16 +64,17 @@ class DiffService
     }
 
     /**
-     * Compute a diff between a persisted snapshot and the current editor content.
-     * Not cached because the right-hand side comes from the user's live buffer.
+     * Compute a diff between the current editor content (left) and a
+     * persisted snapshot (right). Not cached because the left-hand side
+     * comes from the user's live buffer.
      */
     public function computeRaw(string $snapshotId, string $rawContent): array
     {
         $snapshot = HistorySnapshot::findOrFail($snapshotId);
 
         $diff = $this->differ->diff(
-            (string) $snapshot->content_blob,
-            (string) $rawContent,
+            $this->normalizeLineEndings((string) $rawContent),
+            $this->normalizeLineEndings((string) $snapshot->content_blob),
         );
 
         return [
@@ -74,5 +84,16 @@ class DiffService
             ],
             'diff' => $diff,
         ];
+    }
+
+    /**
+     * sebastian/diff is line-ending sensitive: comparing a CRLF text against
+     * an LF text marks every line as changed and prepends a warning. The
+     * Scriptcase IDE saves files with CRLF while CodeMirror returns LF, so
+     * we normalize both sides to LF before computing the diff.
+     */
+    private function normalizeLineEndings(string $content): string
+    {
+        return str_replace(["\r\n", "\r"], "\n", $content);
     }
 }
