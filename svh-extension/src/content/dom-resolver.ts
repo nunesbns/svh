@@ -1,9 +1,11 @@
+import { resolveSnapshotType } from '../lib/snapshot-type';
+
 export interface ScriptcaseContext {
   cod_prj: string;
   cod_apl: string;
   scope: string;
   user_sc_login: string;
-  type: 'app_event' | 'lib_file';
+  type: 'app_event' | 'lib_file' | 'function';
 }
 
 export class DomResolver {
@@ -41,12 +43,21 @@ export class DomResolver {
 
       // Only build a context if we found AT LEAST ONE real piece of info
       if (cod_prj || cod_apl || scope || user_sc_login) {
+        const rawScope = scope || 'Unknown';
+        // `function methodName` -> { type: 'function', scope: 'methodName' }
+        // `libs/foo.php`        -> { type: 'lib_file', scope: 'libs/foo.php' }
+        // anything else         -> { type: 'app_event', scope: as-is }
+        const resolved = resolveSnapshotType(rawScope);
+        const finalType: ScriptcaseContext['type'] = resolved.type !== 'app_event'
+          ? resolved.type
+          : (isLib ? 'lib_file' : 'app_event');
+
         const newContext: ScriptcaseContext = {
           cod_prj: cod_prj || 'Unknown',
           cod_apl: cod_apl || 'Unknown',
-          scope: scope || 'Unknown',
+          scope: resolved.scope || 'Unknown',
           user_sc_login: user_sc_login || 'Unknown',
-          type: isLib ? 'lib_file' : 'app_event',
+          type: finalType,
         };
 
         if (JSON.stringify(newContext) !== JSON.stringify(this.context)) {

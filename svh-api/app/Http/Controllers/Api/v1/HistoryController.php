@@ -15,6 +15,7 @@ class HistoryController extends Controller
             'cod_prj' => 'required|string',
             'cod_apl' => 'required|string',
             'scope' => 'required|string',
+            'type' => 'nullable|string|in:app_event,lib_file,function',
             'cursor' => 'nullable|string',
             'limit' => 'nullable|integer|min:1|max:100',
         ]);
@@ -28,6 +29,10 @@ class HistoryController extends Controller
             })
             ->where('scope', $validated['scope'])
             ->orderByDesc('captured_at');
+
+        if (! empty($validated['type'])) {
+            $query->where('type', $validated['type']);
+        }
 
         if ($validated['cursor'] ?? false) {
             $query->where('captured_at', '<', $validated['cursor']);

@@ -18,7 +18,7 @@ class SnapshotController extends Controller
             'cod_prj' => 'required|string',
             'cod_apl' => 'required|string',
             'scope' => 'required|string',
-            'type' => 'required|string|in:app_event,lib_file',
+            'type' => 'required|string|in:app_event,lib_file,function',
             'content' => 'required|string',
             'user_sc_login' => 'required|string',
             'captured_at' => 'required|date',

@@ -1,5 +1,6 @@
 import { EditorBridge } from './editor-bridge';
 import { DomResolver } from './dom-resolver';
+import { resolveSnapshotType } from '../lib/snapshot-type';
 
 export class SaveInterceptor {
   private lastHash: Record<string, string> = {};
@@ -11,13 +12,14 @@ export class SaveInterceptor {
 
   start() {
     console.log('SVH: SaveInterceptor starting (Form Intercept Mode)...');
-    
-    // Intercept form submissions
+
+    // Intercept form submissions. Scriptcase posts events to `event.php`
+    // and PHP methods to `methods.php` — both flow through this code path.
     document.addEventListener('submit', (e) => {
       const target = e.target as HTMLFormElement;
       console.log('SVH: Form submit detected', { action: target.action });
-      
-      if (target.action.includes('event.php')) {
+
+      if (target.action.includes('event.php') || target.action.includes('methods.php')) {
         this.handleFormSubmit(target);
       }
     }, true);
@@ -36,32 +38,58 @@ export class SaveInterceptor {
     try {
       const formData = new FormData(form);
       const code = formData.get('code') as string;
-      // Scriptcase truncates `event_nome` (e.g. "onScriptInit" -> "onInit"),
-      // but `event_title` keeps the canonical event name. Prefer the title
-      // and fall back to `event_nome` for older layouts.
-      const eventName = (formData.get('event_title') as string)
-        || (formData.get('event_nome') as string);
+      // Scriptcase posts the canonical asset name in `event_title` for both
+      // events and methods. `event_nome` is kept as a legacy fallback (older
+      // layouts truncate the value, e.g. "onScriptInit" -> "onInit").
+      const ctxScope = this.resolver.getContext()?.scope;
+      const formName =
+        (formData.get('event_title') as string) ||
+        (formData.get('event_nome') as string) ||
+        '';
       const option = formData.get('form_option') as string;
 
-      console.log('SVH: Form data captured', { eventName, option, codeLength: code?.length });
+      const isMethodsForm = form.action.includes('methods.php');
+      // For methods, `processSave` will run the captured value through
+      // `resolveSnapshotType`, so we pass the raw scope as-is. For events we
+      // keep the legacy "events/<name>" prefix that the rest of the system
+      // already understands.
+      const rawScope = isMethodsForm
+        ? (formName || ctxScope || 'Unknown')
+        : `events/${formName || ctxScope || 'Unknown'}`;
+
+      console.log('SVH: Form data captured', {
+        action: form.action,
+        formName,
+        ctxScope,
+        rawScope,
+        option,
+        codeLength: code?.length,
+      });
 
       if (option === 'save' && code) {
-        this.processSave(code, `events/${eventName}`);
+        this.processSave(code, rawScope, { isMethod: isMethodsForm });
       }
     } catch (e) {
       console.error('SVH: Error capturing form data', e);
     }
   }
 
-  private async processSave(content: string, scope?: string) {
-    console.log('SVH: processSave', { scope, length: content.length });
+  private async processSave(content: string, scope?: string, opts?: { isMethod?: boolean }) {
+    console.log('SVH: processSave', { scope, isMethod: opts?.isMethod, length: content.length });
     const ctx = this.resolver.getContext();
-    
+
     // Fallback context if resolver hasn't picked it up yet
-    const finalScope = scope || ctx?.scope || 'Unknown';
-    
+    const rawScope = scope || ctx?.scope || 'Unknown';
+    let { type, scope: finalScope } = resolveSnapshotType(rawScope);
+
+    // The form action tells us when we're definitely saving a method, even
+    // if the captured name doesn't carry the `function ` prefix.
+    if (opts?.isMethod && type === 'app_event') {
+      type = 'function';
+    }
+
     const hash = await this.sha256(content);
-    const key = `${ctx?.cod_prj || 'Unknown'}:${finalScope}`;
+    const key = `${ctx?.cod_prj || 'Unknown'}:${type}:${finalScope}`;
 
     if (this.lastHash[key] === hash) return;
     this.lastHash[key] = hash;
@@ -70,7 +98,7 @@ export class SaveInterceptor {
       cod_prj: ctx?.cod_prj || 'Unknown',
       cod_apl: ctx?.cod_apl || 'Unknown',
       user_sc_login: ctx?.user_sc_login || 'Unknown',
-      type: (finalScope.startsWith('libs/')) ? 'lib_file' : 'app_event',
+      type,
       scope: finalScope,
       content,
       hash,
@@ -78,7 +106,7 @@ export class SaveInterceptor {
       metadata: { source: 'form_submit' },
     };
 
-    console.log('SVH: Sending snapshot to background...', { scope: finalScope });
+    console.log('SVH: Sending snapshot to background...', { type, scope: finalScope });
     chrome.runtime.sendMessage({ type: 'SNAPSHOT', payload }).catch(() => {});
   }
 

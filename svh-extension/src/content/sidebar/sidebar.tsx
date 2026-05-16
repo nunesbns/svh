@@ -120,9 +120,9 @@ export class Sidebar {
     this.isLoading = true;
     this.render();
 
-    const { cod_prj, cod_apl, scope } = this.currentContext;
+    const { cod_prj, cod_apl, scope, type } = this.currentContext;
     try {
-      chrome.runtime.sendMessage({ type: 'HISTORY', params: { cod_prj, cod_apl, scope } }, (res) => {
+      chrome.runtime.sendMessage({ type: 'HISTORY', params: { cod_prj, cod_apl, scope, type } }, (res) => {
         this.isLoading = false;
         if (chrome.runtime.lastError) {
           console.warn('SVH: Runtime error during history load', chrome.runtime.lastError.message);
@@ -179,6 +179,19 @@ export class Sidebar {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
+  }
+
+  /**
+   * Header label adapts to the kind of asset currently in scope so the user
+   * knows whether they're looking at history for an event, a library file
+   * or a PHP method.
+   */
+  private scopeLabel(type: string | undefined): string {
+    switch (type) {
+      case 'function': return 'Function';
+      case 'lib_file': return 'Library';
+      default: return 'Event';
+    }
   }
 
   /**
@@ -371,7 +384,7 @@ export class Sidebar {
         <div style="font-size:11px; color:#94a3b8; display:grid; gap:4px; background:#0f172a; padding:8px; border-radius:4px;">
           <div><b>Project:</b> <span style="color:#e2e8f0">${this.escapeHtml(this.renderValue(ctx?.cod_prj))}</span></div>
           <div><b>App:</b> <span style="color:#e2e8f0">${this.escapeHtml(this.renderValue(ctx?.cod_apl))}</span></div>
-          <div><b>Event:</b> <span style="color:#cbd5e1">${this.escapeHtml(this.renderValue(ctx?.scope))}</span></div>
+          <div><b>${this.scopeLabel(ctx?.type)}:</b> <span style="color:#cbd5e1">${this.escapeHtml(this.renderValue(ctx?.scope))}</span></div>
           <div><b>User:</b> <span style="color:#cbd5e1">${this.escapeHtml(this.renderValue(ctx?.user_sc_login))}</span></div>
         </div>
       </div>

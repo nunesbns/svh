@@ -1,4 +1,5 @@
 import { ApiClient } from './lib/api-client';
+import { resolveSnapshotType } from './lib/snapshot-type';
 import { Storage } from './lib/storage';
 
 const storage = new Storage();
@@ -202,39 +203,56 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return false;
 });
 
-// Intercept the actual POST request to event.php
+// Intercept the actual POST request to event.php (events) and methods.php
+// (PHP methods). Both go through the same code path because the form layout
+// is similar — only the field that carries the asset name changes.
 chrome.webRequest.onBeforeRequest.addListener(
   (details) => {
     if (details.method === 'POST' && details.requestBody?.formData) {
       const data = details.requestBody.formData;
-      
+
       const isSave = data.form_option?.[0] === 'save' || data.form_edit?.[0];
       const code = data.code?.[0];
-      // Scriptcase truncates `event_nome` (e.g. "onScriptInit" -> "onInit"),
-      // but `event_title` carries the canonical event name. Prefer the title.
-      const eventName = data.event_title?.[0] || data.event_nome?.[0];
+      const isMethodsUrl = details.url.includes('methods.php');
+      // Scriptcase posts the canonical asset name in `event_title` for both
+      // events and methods. `event_nome` is a legacy fallback.
+      const formName = data.event_title?.[0] || data.event_nome?.[0];
 
       if (isSave && code) {
         // Run async context resolution
         (async () => {
           const context = await getTabContext(details.tabId);
+          // For methods we send the raw method name and let resolveSnapshotType
+          // classify it as "function". For events we keep using the captured
+          // event name (or the resolver context as fallback).
+          const rawScope = isMethodsUrl
+            ? (formName || context.scope || 'Unknown')
+            : (formName || context.scope || 'Unknown');
+          const { type, scope } = resolveSnapshotType(rawScope);
+
+          // If the URL says it's a method but the resolver heuristic still
+          // returned "app_event" (because the form name didn't contain the
+          // `function ` prefix), force the type to "function".
+          const finalType = (isMethodsUrl && type === 'app_event') ? 'function' : type;
+
           const payload = {
             cod_prj: context.cod_prj || 'Unknown',
             cod_apl: context.cod_apl || 'Unknown',
             user_sc_login: context.user_sc_login || 'Unknown',
-            type: 'app_event',
-            scope: eventName || (context.scope || 'Unknown'),
+            type: finalType,
+            scope,
             content: code,
             hash: '',
             captured_at: new Date().toISOString(),
-            metadata: { 
+            metadata: {
               source: 'web_request_interception',
               tab_id: details.tabId,
-              context_source: context.cod_prj ? 'persistent_tab_storage' : 'none'
-            }
+              context_source: context.cod_prj ? 'persistent_tab_storage' : 'none',
+              endpoint: isMethodsUrl ? 'methods.php' : 'event.php',
+            },
           };
 
-          console.log(`SVH: Intercepted save. Project: [${payload.cod_prj}], App: [${payload.cod_apl}], Scope: [${payload.scope}]`);
+          console.log(`SVH: Intercepted save. Project: [${payload.cod_prj}], App: [${payload.cod_apl}], Type: [${payload.type}], Scope: [${payload.scope}]`);
           try {
             await api.sendSnapshot(payload);
           } catch (err) {
@@ -244,7 +262,12 @@ chrome.webRequest.onBeforeRequest.addListener(
       }
     }
   },
-  { urls: ["*://*/scriptcase/devel/iface/event.php*"] },
+  {
+    urls: [
+      "*://*/scriptcase/devel/iface/event.php*",
+      "*://*/scriptcase/devel/iface/methods.php*",
+    ],
+  },
   ["requestBody"]
 );
 
