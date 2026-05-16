@@ -30,6 +30,11 @@ function init() {
   bridge.start();
   interceptor.start();
 
+  // Inject the main-world bridge so we can read/write the CodeMirror
+  // instance attached to `.CodeMirror` (only accessible from the page's
+  // own JS context).
+  injectMainWorldBridge();
+
   // Self-destruct logic: if extension is reloaded, stop everything
   const checkInterval = setInterval(() => {
     if (!isContextValid()) {
@@ -120,35 +125,116 @@ function init() {
     });
   }
 
-  // Editor bridge messages must be handled in EVERY frame, because the
-  // Scriptcase code editor lives inside a nested iframe and only that
-  // frame can read/write `window.editor`. The frame that holds the editor
-  // answers; the others stay silent.
+  // Editor bridge messages: forward between the sidebar (isolated world)
+  // and the page's main-world bridge (which can reach CodeMirror via
+  // `document.querySelector('.CodeMirror').CodeMirror`).
+  //
+  // Cross-frame routing uses chrome.runtime messaging because plain
+  // window.postMessage between iframes is unreliable in some Scriptcase
+  // layouts (sandboxed/isolated frames). The flow is:
+  //
+  //   sidebar (top, isolated)
+  //     -> broadcastToFrames(SVH_GET_EDITOR_VALUE)         [postMessage to every window]
+  //   injector in each frame (isolated)
+  //     -> window.postMessage(SVH_MAIN_GET_EDITOR_VALUE)   [same window]
+  //   main-world bridge in the frame holding the editor
+  //     -> window.postMessage(SVH_MAIN_EDITOR_VALUE_RESULT) [same window]
+  //   injector in that frame
+  //     -> chrome.runtime.sendMessage(SVH_RELAY_TO_TOP, …)
+  //   background
+  //     -> chrome.tabs.sendMessage(tabId, …, { frameId: 0 })
+  //   injector in the TOP frame
+  //     -> window.postMessage(SVH_EDITOR_VALUE_RESULT)     [top window]
+  //   sidebar listener fires.
   window.addEventListener('message', (e) => {
-    if (e.data?.type === 'SVH_GET_EDITOR_VALUE') {
-      if (!bridge?.hasEditor()) return;
-      const val = bridge.getValue();
-      const normalized = typeof val === 'string' ? val : '';
-      console.log(`SVH Injector [${frameId}]: responding to GET_EDITOR_VALUE, length=${normalized.length}`);
-      // Reply via the top window so the sidebar listener (which is in top) hears it.
+    if (e.source !== window) return; // only same-window messages
+    if (!e.data || typeof e.data !== 'object') return;
+
+    const t = e.data.type;
+
+    if (t === 'SVH_GET_EDITOR_VALUE') {
+      window.postMessage({ type: 'SVH_MAIN_GET_EDITOR_VALUE' }, '*');
+    }
+
+    if (t === 'SVH_RESTORE_CONTENT') {
+      window.postMessage(
+        { type: 'SVH_MAIN_RESTORE_CONTENT', payload: e.data.payload },
+        '*',
+      );
+    }
+
+    if (t === 'SVH_MAIN_EDITOR_VALUE_RESULT') {
+      const payload = typeof e.data.payload === 'string' ? e.data.payload : '';
+      console.log(`SVH Injector [${frameId}]: relaying editor value to top, length=${payload.length}`);
       try {
-        window.top?.postMessage({ type: 'SVH_EDITOR_VALUE_RESULT', payload: normalized }, '*');
-      } catch {
-        window.postMessage({ type: 'SVH_EDITOR_VALUE_RESULT', payload: normalized }, '*');
+        chrome.runtime.sendMessage({
+          type: 'SVH_RELAY_TO_TOP',
+          payload: { type: 'SVH_EDITOR_VALUE_RESULT', payload },
+        }).then(() => {
+          console.log(`SVH Injector [${frameId}]: relay request acknowledged by background`);
+        }).catch((err) => {
+          console.error(`SVH Injector [${frameId}]: relay request FAILED`, err?.message || err);
+        });
+      } catch (err) {
+        console.error(`SVH Injector [${frameId}]: chrome.runtime unavailable`, err);
       }
     }
 
-    if (e.data?.type === 'SVH_RESTORE_CONTENT') {
-      if (!bridge?.hasEditor()) return;
-      const ok = bridge.setValue(e.data.payload ?? '');
-      console.log(`SVH Injector [${frameId}]: SVH_RESTORE_CONTENT applied=${ok}`);
+    if (t === 'SVH_MAIN_RESTORE_CONTENT_RESULT') {
+      console.log(`SVH Injector [${frameId}]: relaying restore ack to top, ok=${e.data.ok}`);
       try {
-        window.top?.postMessage({ type: 'SVH_RESTORE_CONTENT_RESULT', ok }, '*');
+        chrome.runtime.sendMessage({
+          type: 'SVH_RELAY_TO_TOP',
+          payload: { type: 'SVH_RESTORE_CONTENT_RESULT', ok: e.data.ok },
+        }).catch((err) => {
+          console.error(`SVH Injector [${frameId}]: restore-ack relay FAILED`, err?.message || err);
+        });
       } catch {
-        window.postMessage({ type: 'SVH_RESTORE_CONTENT_RESULT', ok }, '*');
+        // ignore
       }
     }
   });
+
+  // Any frame that hosts the sidebar receives relays from background and
+  // re-emits them as a window.postMessage so the sidebar listener fires.
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (!msg || typeof msg !== 'object') return false;
+    if (msg.type !== 'SVH_EDITOR_VALUE_RESULT' && msg.type !== 'SVH_RESTORE_CONTENT_RESULT') {
+      return false;
+    }
+    // Only the frame that owns the sidebar should re-emit.
+    const sidebarEl = document.getElementById('svh-sidebar');
+    if (!sidebarEl) return false;
+    console.log(`SVH Injector [${frameId}]: relayed message arrived, type=${msg.type}`);
+    window.postMessage(msg, '*');
+    return false;
+  });
+}
+
+function injectMainWorldBridge() {
+  if (!isContextValid()) {
+    console.warn('SVH Injector: cannot inject main-world bridge, context invalid');
+    return;
+  }
+  if ((document as any).__SVH_MAIN_BRIDGE_INJECTED) {
+    console.log('SVH Injector: main-world bridge already injected, skipping');
+    return;
+  }
+  (document as any).__SVH_MAIN_BRIDGE_INJECTED = true;
+
+  const url = chrome.runtime.getURL('inject/editor-bridge-main.js');
+  console.log('SVH Injector: injecting main-world bridge from', url);
+
+  const script = document.createElement('script');
+  script.src = url;
+  script.onload = () => {
+    console.log('SVH Injector: main-world bridge script loaded');
+    script.remove();
+  };
+  script.onerror = (e) => {
+    console.error('SVH Injector: FAILED to load main-world bridge', e);
+  };
+  (document.head || document.documentElement).appendChild(script);
 }
 
 if (document.readyState === 'loading') {

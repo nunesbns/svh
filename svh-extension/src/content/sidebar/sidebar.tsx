@@ -183,7 +183,7 @@ export class Sidebar {
 
     const diffTarget = this.modalContainer!.querySelector('#diff-target') as HTMLElement;
 
-    if (!diffData?.diff || !diffData.diff.trim()) {
+    if (!diffData?.diff || !this.hasRealHunks(diffData.diff)) {
       diffTarget.innerHTML = `<div style="padding:40px;text-align:center;color:#64748b;">Nenhuma diferença detectada entre o snapshot e o conteúdo atual do editor.</div>`;
     } else {
       try {
@@ -217,6 +217,15 @@ export class Sidebar {
     this.modalContainer!.onclick = (e) => {
       if (e.target === this.modalContainer) this.modalContainer!.style.display = 'none';
     };
+  }
+
+  /**
+   * A unified diff is "real" only if it contains at least one hunk header
+   * (e.g. `@@ -1,5 +1,5 @@`). Otherwise it's just the file headers and
+   * diff2html will throw "Failed to parse lines, starting in 0!".
+   */
+  private hasRealHunks(diff: string): boolean {
+    return /^@@\s/m.test(diff);
   }
 
   /**

@@ -40,11 +40,15 @@ async function build() {
   fs.copyFileSync('src/options/options.html', 'dist/options.html');
   fs.copyFileSync('src/popup/popup.html', 'dist/popup.html');
 
-  // Copy inject folder
+  // Copy inject folder (main-world scripts that aren't bundled by esbuild)
   if (!fs.existsSync('dist/inject')) {
     fs.mkdirSync('dist/inject', { recursive: true });
   }
-  fs.copyFileSync('inject/fetch-patch.js', 'dist/inject/fetch-patch.js');
+  for (const file of fs.readdirSync('inject')) {
+    if (!file.endsWith('.js')) continue;
+    fs.copyFileSync(path.join('inject', file), path.join('dist/inject', file));
+    console.log(`Copied inject script: ${file}`);
+  }
 
   // Copy vendor folder
   if (fs.existsSync('src/vendor')) {

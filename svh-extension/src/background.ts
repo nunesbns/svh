@@ -101,6 +101,33 @@ chrome.runtime.onStartup.addListener(() => {
 
 // Listen for context updates and snapshot requests
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Cross-frame relay: a child frame sends an editor value or restore ack;
+  // we broadcast to every frame of the same tab. The frame that hosts the
+  // sidebar will pick it up and re-emit it as a window message; others
+  // ignore.
+  if (message.type === 'SVH_RELAY_TO_TOP') {
+    const tabId = sender.tab?.id;
+    console.log(`SVH Background: SVH_RELAY_TO_TOP from tab=${tabId} frame=${sender.frameId} payload.type=${message.payload?.type}`);
+    if (tabId !== undefined) {
+      chrome.webNavigation.getAllFrames({ tabId }).then((frames) => {
+        if (!frames) return;
+        let delivered = 0;
+        frames.forEach((f) => {
+          chrome.tabs.sendMessage(tabId, message.payload, { frameId: f.frameId })
+            .then(() => { delivered++; })
+            .catch(() => { /* this frame has no listener — ignore */ });
+        });
+        // Best-effort log; we can't easily await the per-frame promises here.
+        setTimeout(() => console.log(`SVH Background: relay attempted on ${frames.length} frames (tab=${tabId})`), 50);
+      }).catch((err) => {
+        console.error('SVH Background: webNavigation.getAllFrames failed', err);
+      });
+    } else {
+      console.warn('SVH Background: relay request without tabId, dropping');
+    }
+    return false;
+  }
+
   if (message.type === 'SET_CONTEXT') {
     const tabId = sender.tab?.id;
     if (tabId !== undefined) {
