@@ -23,10 +23,13 @@ class DiffController extends Controller
     {
         $validated = $request->validate([
             'snapshot_id' => 'required|uuid',
-            'content' => 'required|string',
+            'content' => 'present|string|nullable',
         ]);
 
-        $diff = $this->diffService->computeRaw($validated['snapshot_id'], $validated['content']);
+        $diff = $this->diffService->computeRaw(
+            $validated['snapshot_id'],
+            $validated['content'] ?? '',
+        );
 
         return response()->json($diff);
     }

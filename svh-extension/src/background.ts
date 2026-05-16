@@ -183,7 +183,9 @@ chrome.webRequest.onBeforeRequest.addListener(
       
       const isSave = data.form_option?.[0] === 'save' || data.form_edit?.[0];
       const code = data.code?.[0];
-      const eventName = data.event_nome?.[0] || data.event_title?.[0];
+      // Scriptcase truncates `event_nome` (e.g. "onScriptInit" -> "onInit"),
+      // but `event_title` carries the canonical event name. Prefer the title.
+      const eventName = data.event_title?.[0] || data.event_nome?.[0];
 
       if (isSave && code) {
         // Run async context resolution
