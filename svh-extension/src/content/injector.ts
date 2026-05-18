@@ -30,6 +30,11 @@ function init() {
   bridge.start();
   interceptor.start();
 
+  // Inject the main-world bridge so we can read/write the CodeMirror
+  // instance attached to `.CodeMirror` (only accessible from the page's
+  // own JS context).
+  injectMainWorldBridge();
+
   // Self-destruct logic: if extension is reloaded, stop everything
   const checkInterval = setInterval(() => {
     if (!isContextValid()) {
@@ -43,14 +48,34 @@ function init() {
   }, 2000);
 
   // ONLY UI logic
-  const attachUI = () => {
+  const attachUI = async () => {
     if (!isContextValid()) return;
-    const target = document.querySelector('#id_main_table');
-    if (!target) return;
-    
     if (document.querySelector('#svh-toggle-btn')) return;
 
-    console.log(`SVH: Found #id_main_table in ${frameId}, attaching button`);
+    const isLibEditor = window.location.pathname.endsWith('/nm_edit_php_edit.php')
+      || window.location.href.includes('nm_edit_php_edit.php');
+
+    if (isLibEditor) {
+      // Only show the button once we know which kind of library is being
+      // edited. The background captures that from the open request
+      // (`form_upload=open` + `field_module`); until we have a writable
+      // kind cached, we keep the button hidden so it doesn't flash on
+      // every helper page hosted by `nm_edit_php_edit.php`.
+      const libKind = await fetchLibKindForTab();
+      if (libKind !== 'project_lib' && libKind !== 'public_lib') {
+        console.log(`SVH: Skipping UI in ${frameId}, libKind=${libKind ?? 'null'}`);
+        return;
+      }
+    }
+
+    const inlineTarget = document.querySelector('#id_main_table');
+
+    // Outside the lib editor we wait for #id_main_table to exist; the lib
+    // editor has no such anchor so we use a floating button anchored to the
+    // viewport instead.
+    if (!inlineTarget && !isLibEditor) return;
+
+    console.log(`SVH: Attaching button in ${frameId} (lib=${isLibEditor})`);
 
     let sidebarEl = document.getElementById('svh-sidebar');
     if (!sidebarEl) {
@@ -77,21 +102,42 @@ function init() {
     const toggle = document.createElement('button');
     toggle.id = 'svh-toggle-btn';
     toggle.innerText = '🕒 SVH History';
-    toggle.style.cssText = `
-      margin-left: 10px;
-      padding: 4px 12px;
-      background: #2563eb;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 12px;
-      vertical-align: middle;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-    `;
-    
+
+    if (isLibEditor) {
+      // Floating button for the lib editor: fixed to the top-right corner
+      // because the lib page has no top toolbar to attach to.
+      toggle.style.cssText = `
+        position: fixed;
+        top: 8px;
+        right: 12px;
+        z-index: 999998;
+        padding: 6px 14px;
+        background: #2563eb;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 600;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+      `;
+    } else {
+      toggle.style.cssText = `
+        margin-left: 10px;
+        padding: 4px 12px;
+        background: #2563eb;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        vertical-align: middle;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      `;
+    }
+
     toggle.onclick = (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -104,12 +150,47 @@ function init() {
       }
     };
 
-    target.appendChild(toggle);
+    if (isLibEditor) {
+      document.body.appendChild(toggle);
+    } else {
+      inlineTarget!.appendChild(toggle);
+    }
+  };
+
+  /**
+   * Removes the existing button (if any) and re-runs attachUI. Called when
+   * the tab context changes (for instance, the user navigated from an event
+   * to a library, or to a built-in scriptcase lib that shouldn't show it).
+   */
+  const reEvaluateUI = () => {
+    const existing = document.getElementById('svh-toggle-btn');
+    if (existing) existing.remove();
+    attachUI();
   };
 
   const observer = new MutationObserver(() => attachUI());
   observer.observe(document.body, { childList: true, subtree: true });
   attachUI();
+
+  // The Scriptcase toolbar exposes the active project via the hidden input
+  // `sys_toolbar_grpcod`. That input lives in the `main.php` frame, NOT in
+  // the lib editor frame, so we report it from whichever frame happens to
+  // host it. The background needs that value to tag lib snapshots with
+  // the right project — without it, libraries land with cod_prj=Unknown
+  // and the API rejects them with "Project Not Mapped".
+  const reportProjectFromToolbar = () => {
+    const input = document.querySelector('input[name="sys_toolbar_grpcod"]') as HTMLInputElement | null;
+    const codPrj = input?.value?.trim();
+    if (!codPrj) return;
+    try {
+      chrome.runtime.sendMessage({ type: 'SET_LIB_PROJECT', cod_prj: codPrj }).catch(() => {});
+    } catch {
+      // chrome.runtime may be unavailable during reload — ignore.
+    }
+  };
+  reportProjectFromToolbar();
+  const toolbarObserver = new MutationObserver(reportProjectFromToolbar);
+  toolbarObserver.observe(document.body, { childList: true, subtree: true });
 
   // Top frame: dispatch context updates as a custom DOM event for the sidebar.
   if (isTop) {
@@ -120,35 +201,154 @@ function init() {
     });
   }
 
-  // Editor bridge messages must be handled in EVERY frame, because the
-  // Scriptcase code editor lives inside a nested iframe and only that
-  // frame can read/write `window.editor`. The frame that holds the editor
-  // answers; the others stay silent.
+  // Editor bridge messages: forward between the sidebar (isolated world)
+  // and the page's main-world bridge (which can reach CodeMirror via
+  // `document.querySelector('.CodeMirror').CodeMirror`).
+  //
+  // Cross-frame routing uses chrome.runtime messaging because plain
+  // window.postMessage between iframes is unreliable in some Scriptcase
+  // layouts (sandboxed/isolated frames). The flow is:
+  //
+  //   sidebar (top, isolated)
+  //     -> broadcastToFrames(SVH_GET_EDITOR_VALUE)         [postMessage to every window]
+  //   injector in each frame (isolated)
+  //     -> window.postMessage(SVH_MAIN_GET_EDITOR_VALUE)   [same window]
+  //   main-world bridge in the frame holding the editor
+  //     -> window.postMessage(SVH_MAIN_EDITOR_VALUE_RESULT) [same window]
+  //   injector in that frame
+  //     -> chrome.runtime.sendMessage(SVH_RELAY_TO_TOP, …)
+  //   background
+  //     -> chrome.tabs.sendMessage(tabId, …, { frameId: 0 })
+  //   injector in the TOP frame
+  //     -> window.postMessage(SVH_EDITOR_VALUE_RESULT)     [top window]
+  //   sidebar listener fires.
   window.addEventListener('message', (e) => {
-    if (e.data?.type === 'SVH_GET_EDITOR_VALUE') {
-      if (!bridge?.hasEditor()) return;
-      const val = bridge.getValue();
-      const normalized = typeof val === 'string' ? val : '';
-      console.log(`SVH Injector [${frameId}]: responding to GET_EDITOR_VALUE, length=${normalized.length}`);
-      // Reply via the top window so the sidebar listener (which is in top) hears it.
+    if (e.source !== window) return; // only same-window messages
+    if (!e.data || typeof e.data !== 'object') return;
+
+    const t = e.data.type;
+
+    if (t === 'SVH_GET_EDITOR_VALUE') {
+      window.postMessage({ type: 'SVH_MAIN_GET_EDITOR_VALUE' }, '*');
+    }
+
+    if (t === 'SVH_RESTORE_CONTENT') {
+      window.postMessage(
+        { type: 'SVH_MAIN_RESTORE_CONTENT', payload: e.data.payload },
+        '*',
+      );
+    }
+
+    if (t === 'SVH_MAIN_EDITOR_VALUE_RESULT') {
+      const payload = typeof e.data.payload === 'string' ? e.data.payload : '';
+      console.log(`SVH Injector [${frameId}]: relaying editor value to top, length=${payload.length}`);
       try {
-        window.top?.postMessage({ type: 'SVH_EDITOR_VALUE_RESULT', payload: normalized }, '*');
-      } catch {
-        window.postMessage({ type: 'SVH_EDITOR_VALUE_RESULT', payload: normalized }, '*');
+        chrome.runtime.sendMessage({
+          type: 'SVH_RELAY_TO_TOP',
+          payload: { type: 'SVH_EDITOR_VALUE_RESULT', payload },
+        }).then(() => {
+          console.log(`SVH Injector [${frameId}]: relay request acknowledged by background`);
+        }).catch((err) => {
+          console.error(`SVH Injector [${frameId}]: relay request FAILED`, err?.message || err);
+        });
+      } catch (err) {
+        console.error(`SVH Injector [${frameId}]: chrome.runtime unavailable`, err);
       }
     }
 
-    if (e.data?.type === 'SVH_RESTORE_CONTENT') {
-      if (!bridge?.hasEditor()) return;
-      const ok = bridge.setValue(e.data.payload ?? '');
-      console.log(`SVH Injector [${frameId}]: SVH_RESTORE_CONTENT applied=${ok}`);
+    if (t === 'SVH_MAIN_RESTORE_CONTENT_RESULT') {
+      console.log(`SVH Injector [${frameId}]: relaying restore ack to top, ok=${e.data.ok}`);
       try {
-        window.top?.postMessage({ type: 'SVH_RESTORE_CONTENT_RESULT', ok }, '*');
+        chrome.runtime.sendMessage({
+          type: 'SVH_RELAY_TO_TOP',
+          payload: { type: 'SVH_RESTORE_CONTENT_RESULT', ok: e.data.ok },
+        }).catch((err) => {
+          console.error(`SVH Injector [${frameId}]: restore-ack relay FAILED`, err?.message || err);
+        });
       } catch {
-        window.postMessage({ type: 'SVH_RESTORE_CONTENT_RESULT', ok }, '*');
+        // ignore
       }
     }
   });
+
+  // Any frame that hosts the sidebar receives relays from background and
+  // re-emits them as a window.postMessage so the sidebar listener fires.
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (!msg || typeof msg !== 'object') return false;
+
+    // Editor bridge replies routed back from another frame (cross-frame
+    // postMessage isn't reliable inside Scriptcase's iframe layout).
+    if (msg.type === 'SVH_EDITOR_VALUE_RESULT' || msg.type === 'SVH_RESTORE_CONTENT_RESULT') {
+      const sidebarEl = document.getElementById('svh-sidebar');
+      if (!sidebarEl) return false;
+      console.log(`SVH Injector [${frameId}]: relayed message arrived, type=${msg.type}`);
+      window.postMessage(msg, '*');
+      return false;
+    }
+
+    // Background tells every frame that the tab context changed (e.g. user
+    // just opened a library). The frame hosting the sidebar updates its
+    // header and reloads history; other frames re-evaluate whether the
+    // history button should be visible.
+    if (msg.type === 'SVH_CONTEXT_PUSH') {
+      console.log(`SVH Injector [${frameId}]: SVH_CONTEXT_PUSH`, msg.payload);
+      // Internal scriptcase libs are signalled with a marker payload that
+      // doesn't carry a real context — only re-run attachUI to hide the
+      // button, never overwrite the sidebar's current context.
+      if (msg.payload?.__libKind) {
+        reEvaluateUI();
+        return false;
+      }
+      document.dispatchEvent(new CustomEvent('svh:context-updated', { detail: msg.payload }));
+      // Re-run attachUI so the floating button appears/disappears as needed.
+      reEvaluateUI();
+      return false;
+    }
+
+    return false;
+  });
+}
+
+function injectMainWorldBridge() {
+  if (!isContextValid()) {
+    console.warn('SVH Injector: cannot inject main-world bridge, context invalid');
+    return;
+  }
+  if ((document as any).__SVH_MAIN_BRIDGE_INJECTED) {
+    console.log('SVH Injector: main-world bridge already injected, skipping');
+    return;
+  }
+  (document as any).__SVH_MAIN_BRIDGE_INJECTED = true;
+
+  const url = chrome.runtime.getURL('inject/editor-bridge-main.js');
+  console.log('SVH Injector: injecting main-world bridge from', url);
+
+  const script = document.createElement('script');
+  script.src = url;
+  script.onload = () => {
+    console.log('SVH Injector: main-world bridge script loaded');
+    script.remove();
+  };
+  script.onerror = (e) => {
+    console.error('SVH Injector: FAILED to load main-world bridge', e);
+  };
+  (document.head || document.documentElement).appendChild(script);
+}
+
+/**
+ * Asks the background for the library kind cached for this tab. Returns
+ * one of `'project_lib' | 'public_lib' | 'scriptcase_internal' | null`.
+ * The injector uses this to decide whether to render the history button on
+ * a given lib page.
+ */
+async function fetchLibKindForTab(): Promise<string | null> {
+  try {
+    if (!chrome.runtime?.id) return null;
+    const reply = await chrome.runtime.sendMessage({ type: 'GET_LIB_KIND' });
+    return reply?.kind ?? null;
+  } catch {
+    return null;
+  }
 }
 
 if (document.readyState === 'loading') {

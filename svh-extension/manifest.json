@@ -17,7 +17,12 @@
   "options_page": "options.html",
   "action": { "default_popup": "popup.html" },
   "web_accessible_resources": [{
-    "resources": ["inject/fetch-patch.js", "vendor/diff2html.min.css"],
+    "resources": [
+      "inject/fetch-patch.js",
+      "inject/editor-bridge-main.js",
+      "vendor/diff2html.min.css",
+      "vendor/highlight-github.min.css"
+    ],
     "matches": ["<all_urls>"]
   }]
 }

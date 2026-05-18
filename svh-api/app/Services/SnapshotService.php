@@ -10,11 +10,22 @@ class SnapshotService
     {
         $hash = hash('sha256', $payload['content']);
 
-        $last = HistorySnapshot::query()
-            ->where('application_id', $payload['application_id'])
+        // Look up the latest snapshot for the same scope to decide if this
+        // save is a duplicate. Application-scoped snapshots are keyed by
+        // application_id; library snapshots have no application and are
+        // keyed by project_id + type instead.
+        $query = HistorySnapshot::query()
             ->where('scope', $payload['scope'])
-            ->latest('captured_at')
-            ->first();
+            ->where('type', $payload['type']);
+
+        if (! empty($payload['application_id'])) {
+            $query->where('application_id', $payload['application_id']);
+        } else {
+            $query->whereNull('application_id')
+                  ->where('project_id', $payload['project_id']);
+        }
+
+        $last = $query->latest('captured_at')->first();
 
         if ($last && $last->hash_sha256 === $hash) {
             return;
@@ -22,7 +33,7 @@ class SnapshotService
 
         HistorySnapshot::create([
             'project_id' => $payload['project_id'],
-            'application_id' => $payload['application_id'],
+            'application_id' => $payload['application_id'] ?? null,
             'type' => $payload['type'],
             'scope' => $payload['scope'],
             'user_sc_login' => $payload['user_sc_login'],

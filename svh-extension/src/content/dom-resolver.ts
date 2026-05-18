@@ -1,9 +1,11 @@
+import { resolveSnapshotType } from '../lib/snapshot-type';
+
 export interface ScriptcaseContext {
   cod_prj: string;
   cod_apl: string;
   scope: string;
   user_sc_login: string;
-  type: 'app_event' | 'lib_file';
+  type: 'app_event' | 'lib_file' | 'function' | 'project_lib' | 'public_lib';
 }
 
 export class DomResolver {
@@ -31,6 +33,15 @@ export class DomResolver {
     try {
       if (!chrome.runtime?.id) return;
 
+      // The lib editor and the lib list are handled exclusively by the
+      // background script (it intercepts `nm_edit_php_list.php` and
+      // `nm_edit_php_edit.php` to figure out which kind of library is
+      // open). Any context this frame would publish here would just be
+      // noise, so we bail out.
+      const inLibFlow = window.location.href.includes('nm_edit_php_edit.php')
+        || window.location.href.includes('nm_edit_php_list.php');
+      if (inLibFlow) return;
+
       const cod_prj = this.extractCodPrj();
       const cod_apl = this.extractCodApl();
       const scope = this.extractScope();
@@ -41,32 +52,42 @@ export class DomResolver {
 
       // Only build a context if we found AT LEAST ONE real piece of info
       if (cod_prj || cod_apl || scope || user_sc_login) {
+        const rawScope = scope || 'Unknown';
+        // `function methodName` -> { type: 'function', scope: 'methodName' }
+        // `libs/foo.php`        -> { type: 'lib_file', scope: 'libs/foo.php' }
+        // anything else         -> { type: 'app_event', scope: as-is }
+        const resolved = resolveSnapshotType(rawScope);
+        const finalType: ScriptcaseContext['type'] = resolved.type !== 'app_event'
+          ? resolved.type
+          : (isLib ? 'lib_file' : 'app_event');
+
         const newContext: ScriptcaseContext = {
           cod_prj: cod_prj || 'Unknown',
           cod_apl: cod_apl || 'Unknown',
-          scope: scope || 'Unknown',
+          scope: resolved.scope || 'Unknown',
           user_sc_login: user_sc_login || 'Unknown',
-          type: isLib ? 'lib_file' : 'app_event',
+          type: finalType,
         };
 
         if (JSON.stringify(newContext) !== JSON.stringify(this.context)) {
           this.context = newContext;
-          
-          // Debug what this specific frame found
+
           if (scope) {
             console.log(`SVH: Frame found scope -> ${scope}`);
           }
 
-          // Notify background
-          try {
-            chrome.runtime.sendMessage({ type: 'SET_CONTEXT', payload: this.context }).catch(() => {});
-          } catch (e) {}
-
-          // Local event for sidebar if it's in this same frame
-          document.dispatchEvent(new CustomEvent('svh:context-updated', { detail: this.context }));
+          this.publishContext();
         }
       }
     } catch (e) {}
+  }
+
+  private publishContext() {
+    if (!this.context) return;
+    try {
+      chrome.runtime.sendMessage({ type: 'SET_CONTEXT', payload: this.context }).catch(() => {});
+    } catch (e) {}
+    document.dispatchEvent(new CustomEvent('svh:context-updated', { detail: this.context }));
   }
 
   private extractCodPrj(): string | null {
