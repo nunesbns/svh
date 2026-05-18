@@ -112,17 +112,37 @@ export class Sidebar {
   }
 
   private loadHistory() {
-    if (!this.currentContext || !this.currentContext.cod_prj || this.currentContext.cod_prj === 'Unknown') {
-      console.warn('SVH Sidebar: Cannot load history - missing project context', this.currentContext);
+    const ctx = this.currentContext;
+    if (!ctx) {
+      console.warn('SVH Sidebar: Cannot load history - no context yet');
+      return;
+    }
+
+    const isPublicLib = ctx.type === 'public_lib';
+    const isLib = isPublicLib || ctx.type === 'project_lib' || ctx.type === 'lib_file';
+
+    // Public libraries are global so we tolerate a missing project.
+    // All other types need a project.
+    if (!isPublicLib && (!ctx.cod_prj || ctx.cod_prj === 'Unknown')) {
+      console.warn('SVH Sidebar: Cannot load history - missing project context', ctx);
       return;
     }
 
     this.isLoading = true;
     this.render();
 
-    const { cod_prj, cod_apl, scope, type } = this.currentContext;
+    const params: Record<string, string> = {
+      cod_prj: ctx.cod_prj,
+      scope: ctx.scope,
+      type: ctx.type,
+    };
+    // cod_apl is only meaningful for application-scoped types.
+    if (!isLib && ctx.cod_apl && ctx.cod_apl !== 'Unknown') {
+      params.cod_apl = ctx.cod_apl;
+    }
+
     try {
-      chrome.runtime.sendMessage({ type: 'HISTORY', params: { cod_prj, cod_apl, scope, type } }, (res) => {
+      chrome.runtime.sendMessage({ type: 'HISTORY', params }, (res) => {
         this.isLoading = false;
         if (chrome.runtime.lastError) {
           console.warn('SVH: Runtime error during history load', chrome.runtime.lastError.message);
@@ -190,6 +210,8 @@ export class Sidebar {
     switch (type) {
       case 'function': return 'Function';
       case 'lib_file': return 'Library';
+      case 'project_lib': return 'Project library';
+      case 'public_lib': return 'Public library';
       default: return 'Event';
     }
   }

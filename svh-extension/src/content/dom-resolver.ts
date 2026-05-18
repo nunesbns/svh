@@ -5,7 +5,7 @@ export interface ScriptcaseContext {
   cod_apl: string;
   scope: string;
   user_sc_login: string;
-  type: 'app_event' | 'lib_file' | 'function';
+  type: 'app_event' | 'lib_file' | 'function' | 'project_lib' | 'public_lib';
 }
 
 export class DomResolver {
@@ -32,6 +32,15 @@ export class DomResolver {
   resolve() {
     try {
       if (!chrome.runtime?.id) return;
+
+      // The lib editor and the lib list are handled exclusively by the
+      // background script (it intercepts `nm_edit_php_list.php` and
+      // `nm_edit_php_edit.php` to figure out which kind of library is
+      // open). Any context this frame would publish here would just be
+      // noise, so we bail out.
+      const inLibFlow = window.location.href.includes('nm_edit_php_edit.php')
+        || window.location.href.includes('nm_edit_php_list.php');
+      if (inLibFlow) return;
 
       const cod_prj = this.extractCodPrj();
       const cod_apl = this.extractCodApl();
@@ -62,22 +71,23 @@ export class DomResolver {
 
         if (JSON.stringify(newContext) !== JSON.stringify(this.context)) {
           this.context = newContext;
-          
-          // Debug what this specific frame found
+
           if (scope) {
             console.log(`SVH: Frame found scope -> ${scope}`);
           }
 
-          // Notify background
-          try {
-            chrome.runtime.sendMessage({ type: 'SET_CONTEXT', payload: this.context }).catch(() => {});
-          } catch (e) {}
-
-          // Local event for sidebar if it's in this same frame
-          document.dispatchEvent(new CustomEvent('svh:context-updated', { detail: this.context }));
+          this.publishContext();
         }
       }
     } catch (e) {}
+  }
+
+  private publishContext() {
+    if (!this.context) return;
+    try {
+      chrome.runtime.sendMessage({ type: 'SET_CONTEXT', payload: this.context }).catch(() => {});
+    } catch (e) {}
+    document.dispatchEvent(new CustomEvent('svh:context-updated', { detail: this.context }));
   }
 
   private extractCodPrj(): string | null {
