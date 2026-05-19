@@ -84,8 +84,13 @@ export class DomResolver {
 
   private extractCodPrj(): string | null {
     try {
+      // 1. Authoritative source: toolbar project label
+      const toolbarEl = document.querySelector('#id_toolbar_codgrp') as HTMLElement;
+      if (toolbarEl?.innerText?.trim()) return toolbarEl.innerText.trim();
+
       const win = window as any;
       if (win.NM_cod_prj) return String(win.NM_cod_prj);
+      
       const el = document.querySelector('#project_tooltip .project') as HTMLElement;
       return el?.innerText?.trim() || null;
     } catch { return null; }
@@ -93,8 +98,19 @@ export class DomResolver {
 
   private extractCodApl(): string | null {
     try {
+      // 1. Authoritative source: active tab text
+      const activeTab = document.querySelector('.nmAbaAppOn .nmAbaAppText') as HTMLElement;
+      if (activeTab) {
+        // Clone to not affect the UI while stripping the image tag
+        const clone = activeTab.cloneNode(true) as HTMLElement;
+        clone.querySelectorAll('img').forEach(img => img.remove());
+        const text = clone.innerText?.trim();
+        if (text) return text;
+      }
+
       const win = window as any;
       if (win.NM_cod_apl) return String(win.NM_cod_apl);
+      
       const el = document.querySelector('li.nmAbaAppOn > span[id^="sys_aba_page_title_"]') as HTMLElement;
       return el?.innerText?.trim() || null;
     } catch { return null; }

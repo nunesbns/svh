@@ -6,6 +6,8 @@ import { Sidebar } from './sidebar/sidebar';
 let resolver: DomResolver | null = null;
 let bridge: EditorBridge | null = null;
 let interceptor: SaveInterceptor | null = null;
+let conflictModal: HTMLElement | null = null;
+let currentAppKey: string | null = null;
 
 function isContextValid() {
   return typeof chrome !== 'undefined' && chrome.runtime && !!chrome.runtime.id;
@@ -29,6 +31,8 @@ function init() {
   resolver.start();
   bridge.start();
   interceptor.start();
+
+  setupConflictMonitor();
 
   // Inject the main-world bridge so we can read/write the CodeMirror
   // instance attached to `.CodeMirror` (only accessible from the page's
@@ -307,6 +311,76 @@ function init() {
 
     return false;
   });
+}
+
+function setupConflictMonitor() {
+  document.addEventListener('svh:context-updated', (e: any) => {
+    const ctx = e.detail;
+    if (!ctx || !ctx.cod_prj || !ctx.cod_apl || ctx.cod_prj === 'Unknown' || ctx.cod_apl === 'Unknown') return;
+
+    const appKey = `${ctx.cod_prj}:${ctx.cod_apl}`;
+    if (appKey === currentAppKey) return;
+    currentAppKey = appKey;
+
+    chrome.runtime.sendMessage({ type: 'CONFLICTS', codPrj: ctx.cod_prj, codApl: ctx.cod_apl }, (res) => {
+      if (res?.ok && res.data?.length > 0) {
+        const others = res.data.filter((u: any) => u.user !== ctx.user_sc_login);
+        if (others.length > 0) {
+          showConflictModal(others.map((u: any) => u.user));
+        }
+      }
+    });
+  });
+}
+
+function showConflictModal(users: string[]) {
+  if (!conflictModal) {
+    conflictModal = document.createElement('div');
+    conflictModal.id = 'svh-conflict-modal';
+    conflictModal.style.cssText = `
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+      z-index: 2000000; display: flex; align-items: center; justify-content: center;
+      font-family: sans-serif;
+    `;
+    document.body.appendChild(conflictModal);
+  }
+
+  conflictModal.innerHTML = `
+    <div style="background: #fff; border-radius: 8px; width: 450px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2); overflow: hidden; border: 1px solid #fecaca;">
+      <div style="background: #fee2e2; padding: 20px; display: flex; align-items: center; gap: 15px;">
+        <div style="font-size: 32px;">⚠️</div>
+        <div>
+          <h3 style="margin: 0; color: #991b1b; font-size: 18px; font-weight: 700;">Conflito de Edição!</h3>
+          <p style="margin: 5px 0 0 0; color: #b91c1c; font-size: 14px;">Outro usuário já está editando esta aplicação.</p>
+        </div>
+      </div>
+      <div style="padding: 24px;">
+        <p style="margin: 0 0 16px 0; color: #475569; font-size: 14px; line-height: 1.5;">
+          Os seguintes desenvolvedores estão ativos nesta aplicação agora:
+          <br><b style="color: #1e293b; font-size: 15px;">${users.join(', ')}</b>
+        </p>
+        <p style="margin: 0 0 24px 0; color: #64748b; font-size: 13px; font-style: italic;">
+          Tenha cuidado ao salvar para não sobrescrever o trabalho alheio.
+        </p>
+        <button id="close-conflict-modal" style="width: 100%; background: #2563eb; color: #fff; border: none; padding: 12px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: background 0.2s;">
+          Entendi, vou tomar cuidado
+        </button>
+      </div>
+    </div>
+  `;
+
+  conflictModal.style.display = 'flex';
+  
+  const btn = conflictModal.querySelector('#close-conflict-modal');
+  btn?.addEventListener('click', () => {
+    conflictModal!.style.display = 'none';
+  });
+
+  // Also close on background click
+  conflictModal.onclick = (e) => {
+    if (e.target === conflictModal) conflictModal!.style.display = 'none';
+  };
 }
 
 function injectMainWorldBridge() {

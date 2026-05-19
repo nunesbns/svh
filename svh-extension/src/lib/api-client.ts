@@ -63,6 +63,21 @@ export class ApiClient {
     }).catch(err => console.error('SVH: Presence failed', err));
   }
 
+  async getConflicts(codPrj: string, codApl: string): Promise<any[]> {
+    const base = await this.baseUrl();
+    if (!base) return [];
+
+    const url = new URL(`${base}/api/v1/presence/conflicts`);
+    url.searchParams.set('cod_prj', codPrj);
+    url.searchParams.set('cod_apl', codApl);
+    const headers = await this.headers();
+
+    const res = await fetch(url.toString(), { headers });
+    if (!res.ok) return [];
+    const json = await res.json();
+    return json.data || [];
+  }
+
   async getHistory(params: any): Promise<any> {
     const base = await this.baseUrl();
     if (!base) return [];

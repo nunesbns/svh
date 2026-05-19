@@ -26,4 +26,21 @@ class PresenceController extends Controller
 
         return response()->json(['status' => 'ok']);
     }
+
+    public function conflicts(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'cod_prj' => 'required|string',
+            'cod_apl' => 'required|string',
+        ]);
+
+        $users = $this->presenceService->getActiveUsers(
+            $validated['cod_prj'],
+            $validated['cod_apl']
+        );
+
+        return response()->json([
+            'data' => $users
+        ]);
+    }
 }

@@ -257,6 +257,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'CONFLICTS') {
+    api.getConflicts(message.codPrj, message.codApl)
+      .then((data) => {
+        try { sendResponse({ ok: true, data }); } catch (e) {}
+      })
+      .catch((err) => {
+        console.error('SVH: Conflicts error', err);
+        try { sendResponse({ ok: false, error: err.message || 'Unknown error' }); } catch (e) {}
+      });
+    return true;
+  }
+
   // Fallback for any other message
   return false;
 });

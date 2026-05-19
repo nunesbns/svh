@@ -42,7 +42,9 @@ export class Sidebar {
     });
 
     document.addEventListener('svh:refresh-history', () => {
-      this.fetchInitialContext(() => this.loadHistory());
+      this.fetchInitialContext(() => {
+        this.loadHistory();
+      });
     });
   }
 
