@@ -116,7 +116,7 @@ export class ApiClient {
     const base = await this.baseUrl();
     if (!base) throw new Error('API URL not configured');
 
-    const url = `${base}/health`;
+    const url = `${base}/api/health`;
     console.log(`SVH: Health check -> ${url}`);
     const res = await fetch(url);
     if (!res.ok) throw new Error('Health check failed');

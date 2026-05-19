@@ -1,6 +1,7 @@
 import { EditorBridge } from './editor-bridge';
 import { DomResolver } from './dom-resolver';
 import { resolveSnapshotType } from '../lib/snapshot-type';
+import { createSnapshotPayload, SnapshotDTO } from '../lib/snapshot-dto';
 
 export class SaveInterceptor {
   private lastHash: Record<string, string> = {};
@@ -14,13 +15,15 @@ export class SaveInterceptor {
     console.log('SVH: SaveInterceptor starting (Form Intercept Mode)...');
 
     // Intercept form submissions. Scriptcase posts events to `event.php`
-    // and PHP methods to `methods.php` — both flow through this code path.
+    // and PHP methods to `methods.php`.
     document.addEventListener('submit', (e) => {
       const target = e.target as HTMLFormElement;
       console.log('SVH: Form submit detected', { action: target.action });
 
-      if (target.action.includes('event.php') || target.action.includes('methods.php')) {
-        this.handleFormSubmit(target);
+      if (target.action.includes('event.php')) {
+        this.handleEventFormSubmit(target);
+      } else if (target.action.includes('methods.php')) {
+        this.handleMethodFormSubmit(target);
       }
     }, true);
 
@@ -29,92 +32,81 @@ export class SaveInterceptor {
       const target = e.target as HTMLElement;
       if (target.closest('#sc_btn_save') || target.closest('button[onclick*="salvar"]')) {
         console.log('SVH: Save button clicked');
-        this.handleSave();
+        this.handleManualSave();
       }
     }, true);
   }
 
-  private handleFormSubmit(form: HTMLFormElement) {
+  private handleEventFormSubmit(form: HTMLFormElement) {
     try {
       const formData = new FormData(form);
       const code = formData.get('code') as string;
-      // Scriptcase posts the canonical asset name in `event_title` for both
-      // events and methods. `event_nome` is kept as a legacy fallback (older
-      // layouts truncate the value, e.g. "onScriptInit" -> "onInit").
-      const ctxScope = this.resolver.getContext()?.scope;
-      const formName =
-        (formData.get('event_title') as string) ||
-        (formData.get('event_nome') as string) ||
-        '';
       const option = formData.get('form_option') as string;
-
-      const isMethodsForm = form.action.includes('methods.php');
-      // For methods, `processSave` will run the captured value through
-      // `resolveSnapshotType`, so we pass the raw scope as-is. For events we
-      // keep the legacy "events/<name>" prefix that the rest of the system
-      // already understands.
-      const rawScope = isMethodsForm
-        ? (formName || ctxScope || 'Unknown')
-        : `events/${formName || ctxScope || 'Unknown'}`;
-
-      console.log('SVH: Form data captured', {
-        action: form.action,
-        formName,
-        ctxScope,
-        rawScope,
-        option,
-        codeLength: code?.length,
-      });
+      const formName = (formData.get('event_nome') as string) || '';
 
       if (option === 'save' && code) {
-        this.processSave(code, rawScope, { isMethod: isMethodsForm });
+        this.processEventSave(code, formName);
       }
     } catch (e) {
-      console.error('SVH: Error capturing form data', e);
+      console.error('SVH: Error capturing event form data', e);
     }
   }
 
-  private async processSave(content: string, scope?: string, opts?: { isMethod?: boolean }) {
-    console.log('SVH: processSave', { scope, isMethod: opts?.isMethod, length: content.length });
-    const ctx = this.resolver.getContext();
+  private handleMethodFormSubmit(form: HTMLFormElement) {
+    try {
+      const formData = new FormData(form);
+      const code = formData.get('code') as string;
+      const option = formData.get('form_option') as string;
+      const formName = (formData.get('event_nome') as string) || '';
 
-    // Fallback context if resolver hasn't picked it up yet
-    const rawScope = scope || ctx?.scope || 'Unknown';
-    let { type, scope: finalScope } = resolveSnapshotType(rawScope);
-
-    // The form action tells us when we're definitely saving a method, even
-    // if the captured name doesn't carry the `function ` prefix.
-    if (opts?.isMethod && type === 'app_event') {
-      type = 'function';
+      if (option === 'save' && code) {
+        this.processMethodSave(code, formName);
+      }
+    } catch (e) {
+      console.error('SVH: Error capturing method form data', e);
     }
+  }
 
-    const hash = await this.sha256(content);
-    const key = `${ctx?.cod_prj || 'Unknown'}:${type}:${finalScope}`;
+  private async processEventSave(content: string, formName?: string) {
+    const ctx = this.resolver.getContext();
+    const rawScope = `events/${formName || ctx?.scope || 'Unknown'}`;
+    const { type, scope } = resolveSnapshotType(rawScope);
+
+    const payload = createSnapshotPayload(ctx, type, scope, content, 'form_submit');
+    await this.dispatchSnapshot(payload);
+  }
+
+  private async processMethodSave(content: string, formName?: string) {
+    const ctx = this.resolver.getContext();
+    const scope = formName || ctx?.scope || 'Unknown';
+    // Methods always have type 'function'
+    const payload = createSnapshotPayload(ctx, 'function', scope, content, 'form_submit');
+    await this.dispatchSnapshot(payload);
+  }
+
+  private async dispatchSnapshot(payload: SnapshotDTO) {
+    const hash = await this.sha256(payload.content);
+    const key = `${payload.cod_prj}:${payload.type}:${payload.scope}`;
 
     if (this.lastHash[key] === hash) return;
     this.lastHash[key] = hash;
 
-    const payload = {
-      cod_prj: ctx?.cod_prj || 'Unknown',
-      cod_apl: ctx?.cod_apl || 'Unknown',
-      user_sc_login: ctx?.user_sc_login || 'Unknown',
-      type,
-      scope: finalScope,
-      content,
-      hash,
-      captured_at: new Date().toISOString(),
-      metadata: { source: 'form_submit' },
-    };
+    payload.hash = hash;
 
-    console.log('SVH: Sending snapshot to background...', { type, scope: finalScope });
+    console.log('SVH: Sending snapshot to background...', { type: payload.type, scope: payload.scope });
     chrome.runtime.sendMessage({ type: 'SNAPSHOT', payload }).catch(() => {});
   }
 
-  private async handleSave() {
+  private async handleManualSave() {
     const content = this.bridge.getValue();
-    if (content) {
-      this.processSave(content);
-    }
+    if (!content) return;
+
+    const ctx = this.resolver.getContext();
+    const rawScope = ctx?.scope || 'Unknown';
+    const { type, scope } = resolveSnapshotType(rawScope);
+
+    const payload = createSnapshotPayload(ctx, type, scope, content, 'manual_save');
+    await this.dispatchSnapshot(payload);
   }
 
   private patchFetch() {
@@ -128,11 +120,13 @@ export class SaveInterceptor {
       
       if (e.data?.type === 'SVH_SAVE_DATA') {
         const { code, scope } = e.data.payload;
-        this.processSave(code, scope);
+        // For patch-based saves, we use the manual save logic as a base
+        const { type, scope: finalScope } = resolveSnapshotType(scope || 'Unknown');
+        this.dispatchSnapshot(createSnapshotPayload(this.resolver.getContext(), type, finalScope, code, 'patch_fetch'));
       }
 
       if (e.data?.type === 'SVH_SAVE_DETECTED') {
-        this.handleSave();
+        this.handleManualSave();
       }
     });
   }

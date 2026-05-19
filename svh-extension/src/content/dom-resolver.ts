@@ -34,10 +34,7 @@ export class DomResolver {
       if (!chrome.runtime?.id) return;
 
       // The lib editor and the lib list are handled exclusively by the
-      // background script (it intercepts `nm_edit_php_list.php` and
-      // `nm_edit_php_edit.php` to figure out which kind of library is
-      // open). Any context this frame would publish here would just be
-      // noise, so we bail out.
+      // background script.
       const inLibFlow = window.location.href.includes('nm_edit_php_edit.php')
         || window.location.href.includes('nm_edit_php_list.php');
       if (inLibFlow) return;
@@ -53,9 +50,6 @@ export class DomResolver {
       // Only build a context if we found AT LEAST ONE real piece of info
       if (cod_prj || cod_apl || scope || user_sc_login) {
         const rawScope = scope || 'Unknown';
-        // `function methodName` -> { type: 'function', scope: 'methodName' }
-        // `libs/foo.php`        -> { type: 'lib_file', scope: 'libs/foo.php' }
-        // anything else         -> { type: 'app_event', scope: as-is }
         const resolved = resolveSnapshotType(rawScope);
         const finalType: ScriptcaseContext['type'] = resolved.type !== 'app_event'
           ? resolved.type
@@ -71,11 +65,9 @@ export class DomResolver {
 
         if (JSON.stringify(newContext) !== JSON.stringify(this.context)) {
           this.context = newContext;
-
           if (scope) {
             console.log(`SVH: Frame found scope -> ${scope}`);
           }
-
           this.publishContext();
         }
       }
@@ -94,7 +86,6 @@ export class DomResolver {
     try {
       const win = window as any;
       if (win.NM_cod_prj) return String(win.NM_cod_prj);
-      
       const el = document.querySelector('#project_tooltip .project') as HTMLElement;
       return el?.innerText?.trim() || null;
     } catch { return null; }
@@ -104,7 +95,6 @@ export class DomResolver {
     try {
       const win = window as any;
       if (win.NM_cod_apl) return String(win.NM_cod_apl);
-
       const el = document.querySelector('li.nmAbaAppOn > span[id^="sys_aba_page_title_"]') as HTMLElement;
       return el?.innerText?.trim() || null;
     } catch { return null; }
@@ -112,14 +102,11 @@ export class DomResolver {
 
   private extractScope(): string | null {
     try {
-      // 1. Try the span_tit_ element directly in THIS document
       const spanTit = document.querySelector('[id^="span_tit_"]') as HTMLElement;
       if (spanTit) {
         const text = spanTit.textContent?.trim();
         if (text) return text;
       }
-
-      // 2. Try the tree selection in THIS document
       const eventsTit = document.getElementById('events_tit');
       if (eventsTit) {
         const clicked = eventsTit.querySelector('.jstree-clicked');
@@ -127,13 +114,10 @@ export class DomResolver {
           return clicked.getAttribute('title') || clicked.textContent?.trim() || null;
         }
       }
-
-      // 3. Brute force in THIS document
       const clicked = document.querySelector('.jstree-clicked');
       if (clicked && (clicked.id?.includes('events_') || clicked.closest('#events_tit'))) {
         return clicked.getAttribute('title') || clicked.textContent?.trim() || null;
       }
-
       return null;
     } catch (e) { return null; }
   }

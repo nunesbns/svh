@@ -1,6 +1,7 @@
 import { ApiClient } from './lib/api-client';
 import { resolveSnapshotType } from './lib/snapshot-type';
 import { Storage } from './lib/storage';
+import { createSnapshotPayload } from './lib/snapshot-dto';
 
 const storage = new Storage();
 const api = new ApiClient(storage);
@@ -287,8 +288,14 @@ chrome.webRequest.onBeforeRequest.addListener(
       return;
     }
 
-    if (url.includes('event.php') || url.includes('methods.php')) {
-      handleEventOrMethodSave(details);
+    if (url.includes('event.php')) {
+      handleEventSave(details);
+      return;
+    }
+
+    if (url.includes('methods.php')) {
+      handleMethodSave(details);
+      return;
     }
   },
   {
@@ -304,46 +311,57 @@ chrome.webRequest.onBeforeRequest.addListener(
   ["requestBody"]
 );
 
-function handleEventOrMethodSave(details: chrome.webRequest.WebRequestBodyDetails) {
+async function handleEventSave(details: chrome.webRequest.WebRequestBodyDetails) {
   const data = details.requestBody!.formData!;
-
   const isSave = data.form_option?.[0] === 'save' || data.form_edit?.[0];
   const code = data.code?.[0];
-  const isMethodsUrl = details.url.includes('methods.php');
-  const formName = data.event_title?.[0] || data.event_nome?.[0];
+  const formName = data.event_nome?.[0];
 
   if (!isSave || !code) return;
 
-  (async () => {
-    const context = await getTabContext(details.tabId);
-    const rawScope = formName || context.scope || 'Unknown';
-    const { type, scope } = resolveSnapshotType(rawScope);
-    const finalType = (isMethodsUrl && type === 'app_event') ? 'function' : type;
+  const context = await getTabContext(details.tabId);
+  const rawScope = formName || context.scope || 'Unknown';
+  const { type, scope } = resolveSnapshotType(rawScope);
 
-    const payload = {
-      cod_prj: context.cod_prj || 'Unknown',
-      cod_apl: context.cod_apl || 'Unknown',
-      user_sc_login: context.user_sc_login || 'Unknown',
-      type: finalType,
-      scope,
-      content: code,
-      hash: '',
-      captured_at: new Date().toISOString(),
-      metadata: {
-        source: 'web_request_interception',
-        tab_id: details.tabId,
-        context_source: context.cod_prj ? 'persistent_tab_storage' : 'none',
-        endpoint: isMethodsUrl ? 'methods.php' : 'event.php',
-      },
-    };
+  const payload = createSnapshotPayload(context, type, scope, code, 'web_request_interception', {
+    tab_id: details.tabId,
+    context_source: context.cod_prj ? 'persistent_tab_storage' : 'none',
+    endpoint: 'event.php',
+  });
 
-    console.log(`SVH: Intercepted save. Project: [${payload.cod_prj}], App: [${payload.cod_apl}], Type: [${payload.type}], Scope: [${payload.scope}]`);
-    try {
-      await api.sendSnapshot(payload);
-    } catch (err) {
-      console.error(`SVH: Background send error for project ${payload.cod_prj}:`, err);
-    }
-  })();
+  console.log(`SVH: Intercepted event save. Project: [${payload.cod_prj}], App: [${payload.cod_apl}], Scope: [${payload.scope}]`);
+  try {
+    await api.sendSnapshot(payload);
+  } catch (err) {
+    console.error(`SVH: Background event send error for project ${payload.cod_prj}:`, err);
+  }
+}
+
+async function handleMethodSave(details: chrome.webRequest.WebRequestBodyDetails) {
+  const data = details.requestBody!.formData!;
+  const isSave = data.form_option?.[0] === 'save' || data.form_edit?.[0];
+  const code = data.code?.[0];
+  const formName = data.event_nome?.[0];
+
+  if (!isSave || !code) return;
+
+  const context = await getTabContext(details.tabId);
+  const rawScope = formName || context.scope || 'Unknown';
+  // Methods always have type 'function' in our system
+  const scope = rawScope;
+
+  const payload = createSnapshotPayload(context, 'function', scope, code, 'web_request_interception', {
+    tab_id: details.tabId,
+    context_source: context.cod_prj ? 'persistent_tab_storage' : 'none',
+    endpoint: 'methods.php',
+  });
+
+  console.log(`SVH: Intercepted method save. Project: [${payload.cod_prj}], App: [${payload.cod_apl}], Scope: [${payload.scope}]`);
+  try {
+    await api.sendSnapshot(payload);
+  } catch (err) {
+    console.error(`SVH: Background method send error for project ${payload.cod_prj}:`, err);
+  }
 }
 
 /**
@@ -487,22 +505,15 @@ async function handleLibSave(details: chrome.webRequest.WebRequestBodyDetails) {
 
   const cleanScope = stripPhpExtension(fieldFile);
 
-  const payload = {
+  const payload = createSnapshotPayload({
     cod_prj,
-    cod_apl: undefined as undefined | string,
+    cod_apl: 'Unknown', // Libs don't have a specific cod_apl context
     user_sc_login: context.user_sc_login || 'Unknown',
-    type: libType,
-    scope: cleanScope,
-    content: libCode,
-    hash: '',
-    captured_at: new Date().toISOString(),
-    metadata: {
-      source: 'web_request_interception',
-      tab_id: details.tabId,
-      endpoint: 'nm_edit_php_edit.php',
-      lib_kind: cachedKind ?? null,
-    },
-  };
+  }, libType, cleanScope, libCode, 'web_request_interception', {
+    tab_id: details.tabId,
+    endpoint: 'nm_edit_php_edit.php',
+    lib_kind: cachedKind ?? null,
+  });
 
   console.log(`SVH: Intercepted lib save. Project: [${payload.cod_prj}], Type: [${payload.type}], Scope: [${payload.scope}]`);
 
