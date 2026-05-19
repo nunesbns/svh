@@ -102,6 +102,18 @@ export class DomResolver {
 
   private extractScope(): string | null {
     try {
+      // 1. Try the mTitle element in the main table
+      // Format: "Category - ScopeName" (e.g., "Consulta - onInit")
+      const mTitle = document.querySelector('#id_main_table td.nmText.nmTitle') as HTMLElement;
+
+      if (mTitle) {
+        const text = mTitle.textContent?.trim() || '';
+        const parts = text.split(' - ');
+        if (parts.length >= 2) {
+          return parts[1].trim();
+        }
+      }
+
       const spanTit = document.querySelector('[id^="span_tit_"]') as HTMLElement;
       if (spanTit) {
         const text = spanTit.textContent?.trim();
