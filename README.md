@@ -1,5 +1,9 @@
 # Scriptcase Versioning Hub (SVH)
 
+<p align="center">
+  <img src="svh_logo_300x300.png" alt="Scriptcase Versioning Hub Logo" width="150" />
+</p>
+
 Scriptcase Versioning Hub is an external versioning ecosystem designed to capture, organize, and restore code snapshots from the Scriptcase IDE.
 
 ## 🚀 Overview
