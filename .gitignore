@@ -34,3 +34,4 @@ svh-extension/node_modules/
 # Misc
 .DS_Store
 *.log
+*.zip
