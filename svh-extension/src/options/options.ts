@@ -2,6 +2,12 @@ import { Storage } from '../lib/storage';
 
 const storage = new Storage();
 
+// Load logo using chrome.runtime.getURL so it works in extension context
+const logoEl = document.getElementById('logo') as HTMLImageElement | null;
+if (logoEl) {
+  logoEl.src = chrome.runtime.getURL('images/icon128.png');
+}
+
 async function load() {
   const config = await storage.getConfig();
   (document.getElementById('apiUrl') as HTMLInputElement).value = config.apiUrl;
@@ -15,8 +21,10 @@ document.getElementById('save')?.addEventListener('click', async () => {
     apiKey: (document.getElementById('apiKey') as HTMLInputElement).value,
     idePattern: (document.getElementById('idePattern') as HTMLInputElement).value,
   });
-  document.getElementById('status')!.textContent = 'Saved!';
-  setTimeout(() => { document.getElementById('status')!.textContent = ''; }, 2000);
+
+  const statusEl = document.getElementById('status')!;
+  statusEl.classList.add('visible');
+  setTimeout(() => { statusEl.classList.remove('visible'); }, 2500);
 });
 
 load();

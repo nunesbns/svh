@@ -1,26 +1,411 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>SVH Options</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SVH — Settings</title>
   <style>
-    body { font-family: sans-serif; padding: 20px; max-width: 400px; margin: auto; }
-    label { display: block; margin-top: 12px; font-weight: bold; }
-    input { width: 100%; padding: 8px; margin-top: 4px; box-sizing: border-box; }
-    button { margin-top: 16px; padding: 8px 16px; }
-    #status { margin-top: 12px; color: green; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-base: #0d1117;
+      --bg-surface: #161b27;
+      --bg-card: #1c2333;
+      --border: #21262d;
+      --border-focus: #58a6ff;
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --text-muted: #484f58;
+      --accent: #58a6ff;
+      --accent-glow: rgba(88,166,255,0.15);
+      --success: #3fb950;
+      --success-glow: rgba(63,185,80,0.15);
+      --danger: #f85149;
+    }
+
+    html, body {
+      min-height: 100vh;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px 48px;
+    }
+
+    /* ─── Page Header ─── */
+    .page-header {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 32px;
+      text-align: center;
+    }
+
+    .logo-wrapper {
+      position: relative;
+      width: 72px;
+      height: 72px;
+    }
+
+    .logo {
+      width: 72px;
+      height: 72px;
+      border-radius: 18px;
+      object-fit: contain;
+      box-shadow: 0 0 30px rgba(88,166,255,0.25), 0 4px 20px rgba(0,0,0,0.5);
+    }
+
+    .logo-glow {
+      position: absolute;
+      inset: -8px;
+      border-radius: 26px;
+      background: radial-gradient(circle, rgba(88,166,255,0.12) 0%, transparent 70%);
+      pointer-events: none;
+      animation: glow-pulse 3s ease-in-out infinite;
+    }
+
+    @keyframes glow-pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.05); }
+    }
+
+    .page-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.5px;
+    }
+
+    .page-subtitle {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    .header-text {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    /* ─── Card ─── */
+    .card {
+      width: 100%;
+      max-width: 480px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 18px 24px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .card-header-icon {
+      width: 32px;
+      height: 32px;
+      background: var(--accent-glow);
+      border: 1px solid rgba(88,166,255,0.2);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card-header-icon svg {
+      width: 16px;
+      height: 16px;
+      color: var(--accent);
+      stroke: var(--accent);
+    }
+
+    .card-header h2 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .card-header span {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .card-body {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* ─── Form Field ─── */
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .input-icon {
+      position: absolute;
+      left: 12px;
+      display: flex;
+      align-items: center;
+      pointer-events: none;
+    }
+
+    .input-icon svg {
+      width: 15px;
+      height: 15px;
+      stroke: var(--text-muted);
+      transition: stroke 0.2s;
+    }
+
+    .field input {
+      width: 100%;
+      padding: 10px 12px 10px 38px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 13px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      outline: none;
+    }
+
+    .field input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .field input:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(88,166,255,0.12);
+    }
+
+    .field input:focus + .input-icon svg,
+    .input-wrapper:focus-within .input-icon svg {
+      stroke: var(--accent);
+    }
+
+    .field-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* ─── Divider ─── */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 4px 0;
+    }
+
+    /* ─── Save Button ─── */
+    .btn-save {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 12px;
+      background: linear-gradient(135deg, #1f6feb 0%, #388bfd 100%);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 16px rgba(31,111,235,0.35);
+    }
+
+    .btn-save:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 24px rgba(31,111,235,0.5);
+    }
+
+    .btn-save:active {
+      transform: translateY(0);
+    }
+
+    .btn-save svg {
+      width: 16px;
+      height: 16px;
+      stroke: #fff;
+    }
+
+    /* ─── Status Toast ─── */
+    #status {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 500;
+      background: var(--success-glow);
+      border: 1px solid rgba(63,185,80,0.3);
+      color: var(--success);
+      animation: fade-in 0.2s ease;
+    }
+
+    #status.visible {
+      display: flex;
+    }
+
+    #status svg {
+      width: 15px;
+      height: 15px;
+      stroke: var(--success);
+      flex-shrink: 0;
+    }
+
+    @keyframes fade-in {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ─── Footer ─── */
+    .page-footer {
+      margin-top: 24px;
+      font-size: 11px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    .page-footer a {
+      color: var(--accent);
+      text-decoration: none;
+      opacity: 0.7;
+      transition: opacity 0.2s;
+    }
+
+    .page-footer a:hover { opacity: 1; }
   </style>
 </head>
 <body>
-  <h1>Scriptcase Versioning Hub</h1>
-  <label>API URL</label>
-  <input type="url" id="apiUrl" placeholder="https://svh.empresa.com">
-  <label>API Key</label>
-  <input type="password" id="apiKey" placeholder="svh_...">
-  <label>IDE URL Pattern</label>
-  <input type="text" id="idePattern" value="https://*/scriptcase/devel/*">
-  <button id="save">Save</button>
-  <div id="status"></div>
+
+  <div class="page-header">
+    <div class="logo-wrapper">
+      <img class="logo" id="logo" alt="SVH Logo" />
+      <div class="logo-glow"></div>
+    </div>
+    <div class="header-text">
+      <div class="page-title">Scriptcase Versioning Hub</div>
+      <div class="page-subtitle">Configure your API connection below</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-header-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+        </svg>
+      </div>
+      <div>
+        <h2>API Connection</h2>
+        <span>Laravel SVH server settings</span>
+      </div>
+    </div>
+
+    <div class="card-body">
+
+      <div class="field">
+        <label for="apiUrl">API URL</label>
+        <div class="input-wrapper">
+          <div class="input-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="2" y1="12" x2="22" y2="12"/>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+            </svg>
+          </div>
+          <input type="url" id="apiUrl" placeholder="https://svh.mycompany.com" />
+        </div>
+        <span class="field-hint">Base URL of your self-hosted Laravel API server.</span>
+      </div>
+
+      <div class="field">
+        <label for="apiKey">Developer API Key</label>
+        <div class="input-wrapper">
+          <div class="input-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+            </svg>
+          </div>
+          <input type="password" id="apiKey" placeholder="svh_..." />
+        </div>
+        <span class="field-hint">Your personal API key issued by your system administrator.</span>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="field">
+        <label for="idePattern">IDE URL Pattern</label>
+        <div class="input-wrapper">
+          <div class="input-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="16 18 22 12 16 6"/>
+              <polyline points="8 6 2 12 8 18"/>
+            </svg>
+          </div>
+          <input type="text" id="idePattern" value="https://*/scriptcase/devel/*" />
+        </div>
+        <span class="field-hint">URL pattern used to detect the Scriptcase IDE tab. Change only if your setup uses a non-standard path.</span>
+      </div>
+
+      <div id="status">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        Settings saved successfully!
+      </div>
+
+      <button class="btn-save" id="save">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+          <polyline points="17 21 17 13 7 13 7 21"/>
+          <polyline points="7 3 7 8 15 8"/>
+        </svg>
+        Save Settings
+      </button>
+
+    </div>
+  </div>
+
+  <div class="page-footer">
+    Open-source · <a href="https://github.com/nunesbns/svh" target="_blank">github.com/nunesbns/svh</a> · v1.1.0
+  </div>
+
   <script src="options.js"></script>
 </body>
 </html>
