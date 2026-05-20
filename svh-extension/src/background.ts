@@ -258,7 +258,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'CONFLICTS') {
-    api.getConflicts(message.codPrj, message.codApl)
+    const tabId = sender.tab?.id;
+    const checkConflictsFlow = async () => {
+      if (tabId !== undefined) {
+        const ctx = await getTabContext(tabId);
+        if (ctx && ctx.cod_prj && ctx.cod_apl && ctx.cod_prj !== 'Unknown' && ctx.cod_apl !== 'Unknown') {
+          console.log(`SVH Background: Registering presence on tab ${tabId} before conflicts check`, ctx);
+          await api.presence(ctx).catch(() => {});
+        }
+      }
+      return api.getConflicts(message.codPrj, message.codApl);
+    };
+
+    checkConflictsFlow()
       .then((data) => {
         try { sendResponse({ ok: true, data }); } catch (e) {}
       })

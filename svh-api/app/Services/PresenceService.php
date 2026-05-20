@@ -16,11 +16,34 @@ class PresenceService
         $user = $data['user_sc_login'];
         $now = time();
 
-        // 1. Individual key for detailed data (still useful for isOnline check or other metadata)
+        // 1. Check if user already has an active presence elsewhere and revoke it if changed
+        $activeKey = "presence:active_user:{$user}";
+        $oldActiveJson = Redis::get($activeKey);
+        if ($oldActiveJson) {
+            $oldActive = json_decode($oldActiveJson, true);
+            $oldPrj = $oldActive['cod_prj'] ?? null;
+            $oldApl = $oldActive['cod_apl'] ?? null;
+
+            if ($oldPrj && $oldApl && ($oldPrj !== $prj || $oldApl !== $apl)) {
+                $oldZsetKey = self::ACTIVE_USERS_KEY . ":{$oldPrj}:{$oldApl}";
+                Redis::zrem($oldZsetKey, $user);
+
+                $oldDetailsKey = "presence:details:{$oldPrj}:{$oldApl}:{$user}";
+                Redis::del($oldDetailsKey);
+            }
+        }
+
+        // 2. Set the last seen timestamp
+        $data['last_seen'] = now()->toIso8601String();
+
+        // 3. Register current active state (global per user)
+        Redis::setex($activeKey, self::TTL, json_encode($data));
+
+        // 4. Individual key for detailed data
         $key = "presence:details:{$prj}:{$apl}:{$user}";
         Redis::setex($key, self::TTL, json_encode($data));
 
-        // 2. Add to application-level ZSET for conflict detection
+        // 5. Add to application-level ZSET for conflict detection
         $zsetKey = self::ACTIVE_USERS_KEY . ":{$prj}:{$apl}";
         Redis::zadd($zsetKey, $now, $user);
         

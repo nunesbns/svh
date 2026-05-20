@@ -193,3 +193,14 @@ An administrative interface is provided for supervisors and managers:
                                                                 ▼
                                                 [Extension: Show Conflict Warning Modal]
 ```
+
+---
+
+## 6. Guidelines for AI Agents (Safety Rules)
+
+To maintain database integrity and prevent unexpected data loss during testing:
+- **No Destructive Database Actions**: NEVER use traits like `RefreshDatabase`, `DatabaseMigrations`, or run commands such as `db:wipe`, `migrate:fresh` inside tests unless it has been explicitly confirmed that the environment is completely isolated (e.g. SQLite in-memory testing) and cannot fall back to the development database connection.
+- **Isolate Redis and Caches**: When writing tests, restrict data clearing (`flushall`/`flushdb`) to specific prefixes (e.g. `presence:*`) so that other development cache or session data is not deleted.
+- **Configuration Check**: Prior to executing database tests, verify that `phpunit.xml` and `.env.testing` configuration variables are not overridden by docker-compose environment variables or `.env` files that target the active Postgres development schema.
+- **Maintain OpenAPI Specification**: Always update `svh-api/public/docs/openapi.yaml` when adding, modifying, or removing API routes, request/response models, or controller validation logic under `routes/api.php` or `app/Http/Controllers/Api/v1/`. Keep the schema accurate and in sync with the backend code.
+

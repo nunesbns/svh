@@ -346,19 +346,24 @@ function showConflictModal(users: string[]) {
     document.body.appendChild(conflictModal);
   }
 
+  const usersText = users.join(', ');
+  const titleText = users.length === 1 ? 'Usuário editando a tela' : 'Usuários editando a tela';
+  const descriptionText = users.length === 1
+    ? `O usuário <b>${usersText}</b> está editando esta tela.`
+    : `Os usuários <b>${usersText}</b> estão editando esta tela.`;
+
   conflictModal.innerHTML = `
     <div style="background: #fff; border-radius: 8px; width: 450px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2); overflow: hidden; border: 1px solid #fecaca;">
       <div style="background: #fee2e2; padding: 20px; display: flex; align-items: center; gap: 15px;">
         <div style="font-size: 32px;">⚠️</div>
         <div>
           <h3 style="margin: 0; color: #991b1b; font-size: 18px; font-weight: 700;">Conflito de Edição!</h3>
-          <p style="margin: 5px 0 0 0; color: #b91c1c; font-size: 14px;">Outro usuário já está editando esta aplicação.</p>
+          <p style="margin: 5px 0 0 0; color: #b91c1c; font-size: 14px;">${titleText}</p>
         </div>
       </div>
       <div style="padding: 24px;">
         <p style="margin: 0 0 16px 0; color: #475569; font-size: 14px; line-height: 1.5;">
-          Os seguintes desenvolvedores estão ativos nesta aplicação agora:
-          <br><b style="color: #1e293b; font-size: 15px;">${users.join(', ')}</b>
+          ${descriptionText}
         </p>
         <p style="margin: 0 0 24px 0; color: #64748b; font-size: 13px; font-style: italic;">
           Tenha cuidado ao salvar para não sobrescrever o trabalho alheio.

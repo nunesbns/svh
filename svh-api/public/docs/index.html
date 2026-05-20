@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVH API Documentation</title>
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Swagger UI CSS from CDN -->
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+    
+    <style>
+        :root {
+            --font-family-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-family-mono: 'JetBrains Mono', monospace;
+            --primary-color: #6366f1; /* Indigo */
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --border-color: #334155;
+            --text-muted: #94a3b8;
+        }
+
+        body {
+            margin: 0;
+            background-color: #fafafa;
+            font-family: var(--font-family-sans);
+        }
+
+        /* Premium Header Styling */
+        .svh-header {
+            background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%);
+            color: #ffffff;
+            padding: 24px 40px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .svh-brand {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .svh-logo {
+            background: linear-gradient(135deg, #818cf8 0%, #4f46e5 100%);
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 18px;
+            color: #ffffff;
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+        }
+
+        .svh-title h1 {
+            margin: 0;
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            background: linear-gradient(to right, #ffffff, #c7d2fe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .svh-title p {
+            margin: 4px 0 0 0;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .svh-badge {
+            background-color: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            color: #a5b4fc;
+            padding: 6px 12px;
+            border-radius: 9999px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        /* Swagger UI Overrides & Styling integration */
+        .swagger-ui {
+            font-family: var(--font-family-sans) !important;
+            padding-bottom: 80px;
+        }
+
+        .swagger-ui .info {
+            margin: 40px 0 20px 0 !important;
+            padding: 0 20px;
+        }
+
+        .swagger-ui .info .title {
+            font-family: var(--font-family-sans) !important;
+            color: #0f172a !important;
+            font-size: 28px !important;
+            font-weight: 700 !important;
+        }
+
+        .swagger-ui .info p, .swagger-ui .info li, .swagger-ui .info td {
+            font-size: 14px !important;
+            line-height: 1.6 !important;
+            color: #334155 !important;
+        }
+
+        .swagger-ui .scheme-container {
+            background-color: #f8fafc !important;
+            box-shadow: none !important;
+            border-bottom: 1px solid #e2e8f0 !important;
+            border-top: 1px solid #e2e8f0 !important;
+            padding: 20px !important;
+            margin-bottom: 20px !important;
+        }
+
+        .swagger-ui select {
+            font-family: var(--font-family-sans) !important;
+        }
+
+        .swagger-ui .opblock {
+            border-radius: 12px !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02) !important;
+            border: 1px solid rgba(0, 0, 0, 0.08) !important;
+        }
+
+        .swagger-ui .opblock .opblock-summary {
+            padding: 12px 20px !important;
+        }
+
+        .swagger-ui .opblock-tag {
+            font-family: var(--font-family-sans) !important;
+            font-size: 18px !important;
+            border-bottom: 1px solid #e2e8f0 !important;
+            padding: 10px 0 !important;
+            margin: 30px 20px 15px 20px !important;
+        }
+
+        .swagger-ui input[type=text], .swagger-ui textarea {
+            font-family: var(--font-family-mono) !important;
+            font-size: 13px !important;
+            border-radius: 6px !important;
+            border: 1px solid #cbd5e1 !important;
+            padding: 8px 12px !important;
+        }
+
+        .swagger-ui .btn {
+            font-family: var(--font-family-sans) !important;
+            font-weight: 600 !important;
+            border-radius: 8px !important;
+            transition: all 0.2s ease !important;
+            padding: 6px 16px !important;
+        }
+
+        .swagger-ui .btn.execute {
+            background-color: var(--primary-color) !important;
+            border-color: var(--primary-color) !important;
+            color: white !important;
+        }
+
+        .swagger-ui .btn.execute:hover {
+            opacity: 0.9 !important;
+        }
+
+        .swagger-ui .model-box {
+            font-family: var(--font-family-sans) !important;
+            background-color: #f8fafc !important;
+            border: 1px solid #e2e8f0 !important;
+            border-radius: 8px !important;
+            padding: 12px !important;
+        }
+
+        .swagger-ui code, .swagger-ui .microlight {
+            font-family: var(--font-family-mono) !important;
+        }
+
+        .swagger-ui .wrapper {
+            max-width: 1200px !important;
+            padding: 0 20px !important;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Premium App Header -->
+    <header class="svh-header">
+        <div class="svh-brand">
+            <div class="svh-logo">SVH</div>
+            <div class="svh-title">
+                <h1>Scriptcase Versioning Hub</h1>
+                <p>Ecosystem API Documentation & Interactive Console</p>
+            </div>
+        </div>
+        <div class="svh-badge">v1.0.0 (Laravel 12 + Octane)</div>
+    </header>
+
+    <!-- Swagger UI Render Container -->
+    <div id="swagger-ui"></div>
+
+    <!-- Swagger UI Bundle JS -->
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js" charset="UTF-8"></script>
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-standalone-preset.js" charset="UTF-8"></script>
+    
+    <script>
+        window.onload = function() {
+            // Resolve the openapi.yaml location dynamically based on how the page is loaded
+            let specUrl = "openapi.yaml";
+            if (window.location.pathname.endsWith('/docs')) {
+                specUrl = "docs/openapi.yaml";
+            } else if (window.location.pathname.endsWith('/docs/')) {
+                specUrl = "openapi.yaml";
+            }
+
+            // Build the Swagger UI configuration
+            const ui = SwaggerUIBundle({
+                url: specUrl,
+                dom_id: '#swagger-ui',
+                deepLinking: true,
+                presets: [
+                    SwaggerUIBundle.presets.apis,
+                    SwaggerUIBundle.SwaggerUIStandalonePreset
+                ],
+                plugins: [
+                    SwaggerUIBundle.plugins.DownloadUrl
+                ],
+                layout: "BaseLayout",
+                persistAuthorization: true,
+                docExpansion: "list",
+                defaultModelsExpandDepth: 1,
+                defaultModelExpandDepth: 1,
+                supportedSubmitMethods: ["get", "post", "put", "delete", "patch"]
+            });
+            window.ui = ui;
+        };
+    </script>
+</body>
+</html>

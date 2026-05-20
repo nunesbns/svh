@@ -1,0 +1,570 @@
+openapi: 3.0.0
+info:
+  title: Scriptcase Versioning Hub (SVH) - API
+  version: 1.0.0
+  description: |
+    Centralized API backend for Scriptcase Versioning Hub (SVH).
+    Handles developer code snapshots (capturing and restoring), presence and conflict checks,
+    and history tracking.
+    
+    ### Authentication
+    Developer-facing endpoints (under `/api/v1`) are guarded and require an API key to be passed in either:
+    1. **Authorization Header**: `Bearer svh_your_api_key_here`
+    2. **X-API-Key Header**: `X-API-Key: svh_your_api_key_here`
+    
+    ### HTTPS requirement
+    In **production** environments, the system forces HTTPS. Requests made over HTTP to `/api/v1`
+    will receive a `426 Upgrade Required` status code.
+servers:
+  - url: /
+    description: Current Host
+  - url: http://localhost:8000
+    description: Local Development Server (php artisan serve)
+  - url: http://localhost
+    description: Local Docker / FrankenPHP Instance
+security:
+  - BearerAuth: []
+  - ApiKeyHeader: []
+paths:
+  /api/health:
+    get:
+      summary: Health Check
+      description: Verifies system components are active and returns the status.
+      security: []
+      responses:
+        '200':
+          description: Service is healthy.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /api/metrics:
+    get:
+      summary: Dashboard Metrics
+      description: Returns high-level metrics for dashboard visualizers.
+      security: []
+      responses:
+        '200':
+          description: Successfully fetched metrics.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  snapshots_rate:
+                    type: integer
+                    description: Number of snapshots captured per unit of time.
+                    example: 0
+                  dedupe_rate:
+                    type: number
+                    description: Percentage of duplicate saves optimized away.
+                    example: 0.0
+                  devs_online:
+                    type: integer
+                    description: Number of developers currently active/online.
+                    example: 0
+
+  /api/v1/snapshots:
+    post:
+      summary: Create Snapshot
+      description: Receives a code snapshot, validates parameters, and dispatches an asynchronous job to compress and persist it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SnapshotRequest'
+      responses:
+        '202':
+          description: Snapshot payload accepted and queued for processing.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: queued
+        '401':
+          $ref: '#/components/responses/401Unauthorized'
+        '404':
+          description: Project is not mapped in the SVH admin panel.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error (e.g. missing `cod_apl` for `app_event` or `function` types).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/snapshots/{id}:
+    get:
+      summary: Get Snapshot
+      description: Retrieves the detailed record and source code contents of a specific snapshot.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The UUID of the snapshot.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Snapshot details fetched.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SnapshotResponse'
+        '401':
+          $ref: '#/components/responses/401Unauthorized'
+        '404':
+          description: Snapshot not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/presence:
+    post:
+      summary: Register Developer Presence
+      description: Registers a developer heartbeat in Redis to track active editors and prevent concurrent conflicts.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PresenceRequest'
+      responses:
+        '200':
+          description: Heartbeat successfully recorded.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+        '401':
+          $ref: '#/components/responses/401Unauthorized'
+        '422':
+          description: Validation error.
+
+  /api/v1/presence/conflicts:
+    get:
+      summary: Check Presence Conflicts
+      description: Lists active developers currently editing the same project and application.
+      parameters:
+        - name: cod_prj
+          in: query
+          required: true
+          description: The Scriptcase Project code.
+          schema:
+            type: string
+        - name: cod_apl
+          in: query
+          required: true
+          description: The Scriptcase Application code.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of active users editing this application (active within the last 5 minutes).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ActiveUser'
+        '401':
+          $ref: '#/components/responses/401Unauthorized'
+        '422':
+          description: Validation error.
+
+  /api/v1/history:
+    get:
+      summary: Fetch Scope History
+      description: Lists the timeline of snapshots for a given scope, ordered from newest to oldest.
+      parameters:
+        - name: cod_prj
+          in: query
+          required: true
+          description: The Scriptcase Project code.
+          schema:
+            type: string
+        - name: cod_apl
+          in: query
+          required: false
+          description: The Scriptcase Application code. Required for application-scoped types.
+          schema:
+            type: string
+        - name: scope
+          in: query
+          required: true
+          description: The specific event name or library file path.
+          schema:
+            type: string
+        - name: type
+          in: query
+          required: false
+          description: Type of the snapshots to retrieve.
+          schema:
+            type: string
+            enum: [app_event, lib_file, function, project_lib, public_lib]
+        - name: cursor
+          in: query
+          required: false
+          description: Cursor (captured_at ISO date string) for pagination.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          description: Number of records to return (1-100, defaults to 20).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: History timeline fetched.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/HistorySnapshotItem'
+                  next_cursor:
+                    type: string
+                    format: date-time
+                    description: Cursor for the next page, or null if no more items.
+                    nullable: true
+                    example: '2026-05-20T10:00:00.000000Z'
+        '401':
+          $ref: '#/components/responses/401Unauthorized'
+        '422':
+          description: Validation error.
+
+  /api/v1/diff/raw:
+    post:
+      summary: Compute Raw Diff
+      description: Computes a unified diff between a stored snapshot and unsaved editor content.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiffRawRequest'
+      responses:
+        '200':
+          description: Diff computation result.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  diff:
+                    type: string
+                    description: Unified diff text.
+                    example: "--- Original\n+++ Modified\n@@ -1,3 +1,3 @@\n-old code\n+new code"
+        '401':
+          $ref: '#/components/responses/401Unauthorized'
+        '422':
+          description: Validation error.
+
+  /api/v1/diff/{a}/{b}:
+    get:
+      summary: Compute Snapshot Diff
+      description: Computes and returns the unified diff comparing snapshot `a` to snapshot `b`.
+      parameters:
+        - name: a
+          in: path
+          required: true
+          description: The UUID of the first (older) snapshot.
+          schema:
+            type: string
+            format: uuid
+        - name: b
+          in: path
+          required: true
+          description: The UUID of the second (newer) snapshot.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Unified diff output.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  diff:
+                    type: string
+                    description: Unified diff text.
+                    example: "--- Original\n+++ Modified\n@@ -1,3 +1,3 @@\n-old code\n+new code"
+        '401':
+          $ref: '#/components/responses/401Unauthorized'
+
+  /api/v1/restore:
+    post:
+      summary: Request Code Restore
+      description: Logs the restore request in the audit trails and returns the code content block to be injected in Scriptcase.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RestoreRequest'
+      responses:
+        '200':
+          description: Snapshot content details to inject.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RestoreResponse'
+        '401':
+          $ref: '#/components/responses/401Unauthorized'
+        '404':
+          description: Snapshot not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: API Key as a Bearer token in the `Authorization` header. Example `Bearer svh_...`
+    ApiKeyHeader:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API Key passed directly via the `X-API-Key` header.
+  responses:
+    401Unauthorized:
+      description: Unauthorized. Missing or invalid API key.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+            
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Invalid API Key"
+
+    SnapshotRequest:
+      type: object
+      required:
+        - cod_prj
+        - scope
+        - type
+        - content
+        - user_sc_login
+        - captured_at
+      properties:
+        cod_prj:
+          type: string
+          description: Scriptcase project identifier.
+          example: "prj_billing"
+        cod_apl:
+          type: string
+          description: Scriptcase application identifier. Required for application-scoped events/functions.
+          example: "grid_invoices"
+          nullable: true
+        scope:
+          type: string
+          description: Scope name (e.g. event name `onRecord` or library file path `lib/util.php`).
+          example: "onRecord"
+        type:
+          type: string
+          description: |
+            Semantics:
+            - `app_event`: regular application event (cod_apl required)
+            - `function`: PHP method inside an application (cod_apl required)
+            - `lib_file`: library file (backwards compatibility)
+            - `project_lib`: project-scoped library (no cod_apl; project level)
+            - `public_lib`: global library shared across projects (no cod_apl)
+          enum: [app_event, lib_file, function, project_lib, public_lib]
+          example: "app_event"
+        content:
+          type: string
+          description: Full code buffer.
+          example: "echo 'Hello World';"
+        user_sc_login:
+          type: string
+          description: Developer identifier login.
+          example: "bruno.nunes"
+        captured_at:
+          type: string
+          format: date-time
+          description: Client-side timestamp when save was clicked.
+          example: "2026-05-20T10:41:00Z"
+        metadata:
+          type: object
+          description: Additional key-value payload details.
+          nullable: true
+          example: null
+
+    SnapshotResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "9a3d460d-2b4f-4d6d-8a62-79010e9f644b"
+        content:
+          type: string
+          description: Source code block.
+          example: "echo 'Hello World';"
+        scope:
+          type: string
+          example: "onRecord"
+        type:
+          type: string
+          example: "app_event"
+        user_sc_login:
+          type: string
+          example: "bruno.nunes"
+        captured_at:
+          type: string
+          format: date-time
+          example: "2026-05-20T10:41:00Z"
+        metadata:
+          type: object
+          nullable: true
+
+    PresenceRequest:
+      type: object
+      required:
+        - cod_prj
+        - cod_apl
+        - scope
+        - user_sc_login
+      properties:
+        cod_prj:
+          type: string
+          example: "prj_billing"
+        cod_apl:
+          type: string
+          example: "grid_invoices"
+        scope:
+          type: string
+          example: "onRecord"
+        user_sc_login:
+          type: string
+          example: "bruno.nunes"
+
+    ActiveUser:
+      type: object
+      properties:
+        user_sc_login:
+          type: string
+          example: "bruno.nunes"
+        scope:
+          type: string
+          example: "onRecord"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-05-20T10:44:30.000Z"
+
+    HistorySnapshotItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "9a3d460d-2b4f-4d6d-8a62-79010e9f644b"
+        scope:
+          type: string
+          example: "onRecord"
+        type:
+          type: string
+          example: "app_event"
+        user_sc_login:
+          type: string
+          example: "bruno.nunes"
+        captured_at:
+          type: string
+          format: date-time
+          example: "2026-05-20T10:41:00.000000Z"
+        metadata:
+          type: object
+          nullable: true
+
+    DiffRawRequest:
+      type: object
+      required:
+        - snapshot_id
+        - content
+      properties:
+        snapshot_id:
+          type: string
+          format: uuid
+          example: "9a3d460d-2b4f-4d6d-8a62-79010e9f644b"
+        content:
+          type: string
+          nullable: true
+          description: Client-side editor content to compare.
+          example: "echo 'Hello World New';"
+
+    RestoreRequest:
+      type: object
+      required:
+        - snapshot_id
+      properties:
+        snapshot_id:
+          type: string
+          format: uuid
+          example: "9a3d460d-2b4f-4d6d-8a62-79010e9f644b"
+
+    RestoreResponse:
+      type: object
+      properties:
+        content:
+          type: string
+          description: Code blob to restore.
+          example: "echo 'Hello World';"
+        snapshot:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+              example: "9a3d460d-2b4f-4d6d-8a62-79010e9f644b"
+            scope:
+              type: string
+              example: "onRecord"
+            type:
+              type: string
+              example: "app_event"
+            user_sc_login:
+              type: string
+              example: "bruno.nunes"
+            captured_at:
+              type: string
+              format: date-time
+              example: "2026-05-20T10:41:00.000000Z"
