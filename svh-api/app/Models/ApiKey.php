@@ -13,6 +13,7 @@ class ApiKey extends Model
     protected $fillable = [
         'name',
         'email',
+        'scriptcase_username',
         'prefix',
         'hash',
         'scope',

@@ -24,6 +24,9 @@ class ApiKeyResource extends Resource
                 Forms\Components\Section::make()
                     ->schema([
                         Forms\Components\TextInput::make('name')->required(),
+                        Forms\Components\TextInput::make('scriptcase_username')
+                            ->required()
+                            ->unique(ignoreRecord: true),
                         Forms\Components\TextInput::make('email')
                             ->email()
                             ->required()
@@ -50,6 +53,7 @@ class ApiKeyResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('name')->searchable(),
+                Tables\Columns\TextColumn::make('scriptcase_username')->searchable(),
                 Tables\Columns\TextColumn::make('email'),
                 Tables\Columns\TextColumn::make('prefix'),
                 Tables\Columns\TextColumn::make('scope')->badge(),
