@@ -40,6 +40,18 @@ async function build() {
   fs.copyFileSync('src/options/options.html', 'dist/options.html');
   fs.copyFileSync('src/popup/popup.html', 'dist/popup.html');
 
+  // Copy images folder
+  if (fs.existsSync('images')) {
+    if (!fs.existsSync('dist/images')) {
+      fs.mkdirSync('dist/images', { recursive: true });
+    }
+    const imageFiles = fs.readdirSync('images');
+    for (const file of imageFiles) {
+      fs.copyFileSync(path.join('images', file), path.join('dist/images', file));
+      console.log(`Copied icon asset: ${file}`);
+    }
+  }
+
   // Copy inject folder (main-world scripts that aren't bundled by esbuild)
   if (!fs.existsSync('dist/inject')) {
     fs.mkdirSync('dist/inject', { recursive: true });
