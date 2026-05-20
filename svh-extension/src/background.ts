@@ -606,9 +606,17 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     }
 
     if (alarm.name === 'presence') {
-      const ctx = await storage.getContext();
-      if (ctx) {
-        await api.presence(ctx).catch(() => {});
+      try {
+        const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+        const activeTab = tabs[0];
+        if (activeTab && activeTab.id !== undefined) {
+          const ctx = await getTabContext(activeTab.id);
+          if (ctx && ctx.cod_prj && ctx.cod_prj !== 'Unknown') {
+            await api.presence(ctx).catch(() => {});
+          }
+        }
+      } catch (e) {
+        console.error('SVH: Presence alarm error', e);
       }
     }
   } catch (e) {
