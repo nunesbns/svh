@@ -16,18 +16,16 @@ class DeveloperActivityResource extends Resource
 
     protected static ?string $label = 'Developer Activity';
 
-    protected static array $presenceCache = [];
-
     protected static function getRecordPresence($record): ?array
     {
         if (! $record->scriptcase_username) {
             return null;
         }
-        if (! array_key_exists($record->id, static::$presenceCache)) {
+
+        return once(function () use ($record) {
             $presenceJson = Redis::get("presence:active_user:{$record->scriptcase_username}");
-            static::$presenceCache[$record->id] = $presenceJson ? json_decode($presenceJson, true) : null;
-        }
-        return static::$presenceCache[$record->id];
+            return $presenceJson ? json_decode($presenceJson, true) : null;
+        });
     }
 
     public static function table(Table $table): Table
