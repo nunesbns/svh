@@ -1,4 +1,5 @@
 import { resolveSnapshotType } from '../lib/snapshot-type';
+import { log } from '../lib/logger';
 
 export interface ScriptcaseContext {
   cod_prj: string;
@@ -66,7 +67,7 @@ export class DomResolver {
         if (JSON.stringify(newContext) !== JSON.stringify(this.context)) {
           this.context = newContext;
           if (scope) {
-            console.log(`SVH: Frame found scope -> ${scope}`);
+            log(`SVH: Frame found scope -> ${scope}`);
           }
           this.publishContext();
         }

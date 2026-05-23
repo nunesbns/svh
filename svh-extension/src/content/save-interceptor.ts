@@ -2,6 +2,7 @@ import { EditorBridge } from './editor-bridge';
 import { DomResolver } from './dom-resolver';
 import { resolveSnapshotType } from '../lib/snapshot-type';
 import { createSnapshotPayload, SnapshotDTO } from '../lib/snapshot-dto';
+import { log, IS_DEV } from '../lib/logger';
 
 export class SaveInterceptor {
   private lastHash: Record<string, string> = {};
@@ -12,13 +13,13 @@ export class SaveInterceptor {
   ) {}
 
   start() {
-    console.log('SVH: SaveInterceptor starting (Form Intercept Mode)...');
+    log('SVH: SaveInterceptor starting (Form Intercept Mode)...');
 
     // Intercept form submissions. Scriptcase posts events to `event.php`
     // and PHP methods to `methods.php`.
     document.addEventListener('submit', (e) => {
       const target = e.target as HTMLFormElement;
-      console.log('SVH: Form submit detected', { action: target.action });
+      log('SVH: Form submit detected', { action: target.action });
 
       if (target.action.includes('event.php')) {
         this.handleEventFormSubmit(target);
@@ -31,7 +32,7 @@ export class SaveInterceptor {
     document.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
       if (target.closest('#sc_btn_save') || target.closest('button[onclick*="salvar"]')) {
-        console.log('SVH: Save button clicked');
+        log('SVH: Save button clicked');
         this.handleManualSave();
       }
     }, true);
@@ -93,7 +94,7 @@ export class SaveInterceptor {
 
     payload.hash = hash;
 
-    console.log('SVH: Sending snapshot to background...', { type: payload.type, scope: payload.scope });
+    log('SVH: Sending snapshot to background...', { type: payload.type, scope: payload.scope });
     chrome.runtime.sendMessage({ type: 'SNAPSHOT', payload }).catch(() => {});
   }
 
@@ -112,6 +113,7 @@ export class SaveInterceptor {
   private patchFetch() {
     const script = document.createElement('script');
     script.src = chrome.runtime.getURL('inject/fetch-patch.js');
+    script.setAttribute('data-dev', String(IS_DEV));
     script.onload = () => script.remove();
     (document.head || document.documentElement).appendChild(script);
 

@@ -7,6 +7,13 @@
   if (window.__SVH_EDITOR_MAIN_INSTALLED) return;
   window.__SVH_EDITOR_MAIN_INSTALLED = true;
 
+  const isDev = document.currentScript?.getAttribute('data-dev') !== 'false';
+  function log(message, ...args) {
+    if (isDev) {
+      console.log(message, ...args);
+    }
+  }
+
   function getCodeMirrorInstance() {
     const el = document.querySelector('.CodeMirror');
     if (el && el.CodeMirror) return el.CodeMirror;
@@ -47,7 +54,7 @@
     if (data.type === 'SVH_MAIN_GET_EDITOR_VALUE') {
       const value = getValue();
       if (value === null) return; // no editor here; stay silent
-      console.log('SVH MAIN: replying GET_EDITOR_VALUE, length=' + value.length);
+      log('SVH MAIN: replying GET_EDITOR_VALUE, length=' + value.length);
       window.postMessage({ type: 'SVH_MAIN_EDITOR_VALUE_RESULT', payload: value }, '*');
     }
 
@@ -56,10 +63,10 @@
       const ta = document.querySelector('#codigo_php');
       if (!cm && !ta) return; // no editor here; stay silent
       const ok = setValue(typeof data.payload === 'string' ? data.payload : '');
-      console.log('SVH MAIN: RESTORE_CONTENT applied=' + ok);
+      log('SVH MAIN: RESTORE_CONTENT applied=' + ok);
       window.postMessage({ type: 'SVH_MAIN_RESTORE_CONTENT_RESULT', ok }, '*');
     }
   });
 
-  console.log('SVH MAIN: editor bridge installed');
+  log('SVH MAIN: editor bridge installed');
 })();

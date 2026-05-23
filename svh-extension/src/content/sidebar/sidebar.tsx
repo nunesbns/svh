@@ -3,6 +3,7 @@ import hljs from 'highlight.js/lib/core';
 import phpLang from 'highlight.js/lib/languages/php';
 import xmlLang from 'highlight.js/lib/languages/xml';
 import javascriptLang from 'highlight.js/lib/languages/javascript';
+import { log } from '../../lib/logger';
 
 // Register only the languages we care about. Smaller bundle, predictable
 // detection (highlight.js auto-detect can pick odd languages on short
@@ -279,7 +280,7 @@ export class Sidebar {
     } else {
       try {
         const diffInput = this.normalizeDiff(diffData.diff);
-        console.log('SVH Sidebar: rendering diff with hljs', { hljsAvailable: !!hljs, listed: hljs.listLanguages() });
+        log('SVH Sidebar: rendering diff with hljs', { hljsAvailable: !!hljs, listed: hljs.listLanguages() });
         const ui = new Diff2HtmlUI(diffTarget, diffInput, {
           drawFileList: false,
           matching: 'lines',
@@ -291,11 +292,11 @@ export class Sidebar {
         // Inspect what diff2html generated.
         const fileWrappers = diffTarget.querySelectorAll('.d2h-file-wrapper');
         fileWrappers.forEach((fw, i) => {
-          console.log(`SVH Sidebar: file wrapper ${i} data-lang="${fw.getAttribute('data-lang')}"`);
+          log(`SVH Sidebar: file wrapper ${i} data-lang="${fw.getAttribute('data-lang')}"`);
         });
         ui.highlightCode();
         const highlightedLines = diffTarget.querySelectorAll('.hljs').length;
-        console.log(`SVH Sidebar: ${highlightedLines} lines received the .hljs class`);
+        log(`SVH Sidebar: ${highlightedLines} lines received the .hljs class`);
         diffTarget.querySelectorAll('.d2h-file-header').forEach((el) => {
           (el as HTMLElement).style.display = 'none';
         });
@@ -484,7 +485,7 @@ export class Sidebar {
   }
 
   private startDiffProcess(snapshotId: string) {
-    console.log('SVH Sidebar: startDiffProcess', { snapshotId });
+    log('SVH Sidebar: startDiffProcess', { snapshotId });
 
     this.setLoadingItem(snapshotId);
 
@@ -497,7 +498,7 @@ export class Sidebar {
         window.removeEventListener('message', listener);
         clearTimeout(timeoutId);
         const payload = typeof event.data.payload === 'string' ? event.data.payload : '';
-        console.log('SVH Sidebar: editor value received', { length: payload.length });
+        log('SVH Sidebar: editor value received', { length: payload.length });
         this.fetchDiffAndOpen(snapshotId, payload);
       }
     };
@@ -515,7 +516,7 @@ export class Sidebar {
   }
 
   private fetchDiffAndOpen(snapshotId: string, currentContent: string) {
-    console.log('SVH Sidebar: fetchDiffAndOpen', { snapshotId, contentLength: currentContent?.length ?? 0 });
+    log('SVH Sidebar: fetchDiffAndOpen', { snapshotId, contentLength: currentContent?.length ?? 0 });
     chrome.runtime.sendMessage({ type: 'RAW_DIFF', snapshotId, content: currentContent ?? '' }, (res) => {
       if (chrome.runtime.lastError) {
         console.error('SVH: Runtime error during diff load', chrome.runtime.lastError.message);
@@ -530,7 +531,7 @@ export class Sidebar {
         return;
       }
       const diffData = res.data;
-      console.log('SVH Sidebar: diff received', { hasDiff: !!diffData?.diff, diffLength: diffData?.diff?.length });
+      log('SVH Sidebar: diff received', { hasDiff: !!diffData?.diff, diffLength: diffData?.diff?.length });
       chrome.runtime.sendMessage({ type: 'RESTORE', snapshotId }, (snapRes) => {
         this.setLoadingItem(null);
         if (chrome.runtime.lastError) {

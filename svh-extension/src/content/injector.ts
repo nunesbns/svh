@@ -2,6 +2,7 @@ import { DomResolver } from './dom-resolver';
 import { EditorBridge } from './editor-bridge';
 import { SaveInterceptor } from './save-interceptor';
 import { Sidebar } from './sidebar/sidebar';
+import { log, IS_DEV } from '../lib/logger';
 
 let resolver: DomResolver | null = null;
 let bridge: EditorBridge | null = null;
@@ -22,7 +23,7 @@ function init() {
   if ((window as any).SVH_INITIALIZED) return;
   (window as any).SVH_INITIALIZED = true;
 
-  console.log(`SVH: Initializing in ${frameId}`, { url: window.location.href });
+  log(`SVH: Initializing in ${frameId}`, { url: window.location.href });
 
   resolver = new DomResolver();
   bridge = new EditorBridge();
@@ -42,7 +43,7 @@ function init() {
   // Self-destruct logic: if extension is reloaded, stop everything
   const checkInterval = setInterval(() => {
     if (!isContextValid()) {
-      console.log(`SVH: Context invalidated in ${frameId}, cleaning up...`);
+      log(`SVH: Context invalidated in ${frameId}, cleaning up...`);
       clearInterval(checkInterval);
       resolver?.stop();
       bridge?.stop();
@@ -67,7 +68,7 @@ function init() {
       // every helper page hosted by `nm_edit_php_edit.php`.
       const libKind = await fetchLibKindForTab();
       if (libKind !== 'project_lib' && libKind !== 'public_lib') {
-        console.log(`SVH: Skipping UI in ${frameId}, libKind=${libKind ?? 'null'}`);
+        log(`SVH: Skipping UI in ${frameId}, libKind=${libKind ?? 'null'}`);
         return;
       }
     }
@@ -79,7 +80,7 @@ function init() {
     // viewport instead.
     if (!inlineTarget && !isLibEditor) return;
 
-    console.log(`SVH: Attaching button in ${frameId} (lib=${isLibEditor})`);
+    log(`SVH: Attaching button in ${frameId} (lib=${isLibEditor})`);
 
     let sidebarEl = document.getElementById('svh-sidebar');
     if (!sidebarEl) {
@@ -245,13 +246,13 @@ function init() {
 
     if (t === 'SVH_MAIN_EDITOR_VALUE_RESULT') {
       const payload = typeof e.data.payload === 'string' ? e.data.payload : '';
-      console.log(`SVH Injector [${frameId}]: relaying editor value to top, length=${payload.length}`);
+      log(`SVH Injector [${frameId}]: relaying editor value to top, length=${payload.length}`);
       try {
         chrome.runtime.sendMessage({
           type: 'SVH_RELAY_TO_TOP',
           payload: { type: 'SVH_EDITOR_VALUE_RESULT', payload },
         }).then(() => {
-          console.log(`SVH Injector [${frameId}]: relay request acknowledged by background`);
+          log(`SVH Injector [${frameId}]: relay request acknowledged by background`);
         }).catch((err) => {
           console.error(`SVH Injector [${frameId}]: relay request FAILED`, err?.message || err);
         });
@@ -261,7 +262,7 @@ function init() {
     }
 
     if (t === 'SVH_MAIN_RESTORE_CONTENT_RESULT') {
-      console.log(`SVH Injector [${frameId}]: relaying restore ack to top, ok=${e.data.ok}`);
+      log(`SVH Injector [${frameId}]: relaying restore ack to top, ok=${e.data.ok}`);
       try {
         chrome.runtime.sendMessage({
           type: 'SVH_RELAY_TO_TOP',
@@ -285,7 +286,7 @@ function init() {
     if (msg.type === 'SVH_EDITOR_VALUE_RESULT' || msg.type === 'SVH_RESTORE_CONTENT_RESULT') {
       const sidebarEl = document.getElementById('svh-sidebar');
       if (!sidebarEl) return false;
-      console.log(`SVH Injector [${frameId}]: relayed message arrived, type=${msg.type}`);
+      log(`SVH Injector [${frameId}]: relayed message arrived, type=${msg.type}`);
       window.postMessage(msg, '*');
       return false;
     }
@@ -295,7 +296,7 @@ function init() {
     // header and reloads history; other frames re-evaluate whether the
     // history button should be visible.
     if (msg.type === 'SVH_CONTEXT_PUSH') {
-      console.log(`SVH Injector [${frameId}]: SVH_CONTEXT_PUSH`, msg.payload);
+      log(`SVH Injector [${frameId}]: SVH_CONTEXT_PUSH`, msg.payload);
       // Internal scriptcase libs are signalled with a marker payload that
       // doesn't carry a real context — only re-run attachUI to hide the
       // button, never overwrite the sidebar's current context.
@@ -394,18 +395,19 @@ function injectMainWorldBridge() {
     return;
   }
   if ((document as any).__SVH_MAIN_BRIDGE_INJECTED) {
-    console.log('SVH Injector: main-world bridge already injected, skipping');
+    log('SVH Injector: main-world bridge already injected, skipping');
     return;
   }
   (document as any).__SVH_MAIN_BRIDGE_INJECTED = true;
 
   const url = chrome.runtime.getURL('inject/editor-bridge-main.js');
-  console.log('SVH Injector: injecting main-world bridge from', url);
+  log('SVH Injector: injecting main-world bridge from', url);
 
   const script = document.createElement('script');
   script.src = url;
+  script.setAttribute('data-dev', String(IS_DEV));
   script.onload = () => {
-    console.log('SVH Injector: main-world bridge script loaded');
+    log('SVH Injector: main-world bridge script loaded');
     script.remove();
   };
   script.onerror = (e) => {

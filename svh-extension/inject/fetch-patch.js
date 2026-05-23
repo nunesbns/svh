@@ -1,5 +1,12 @@
 (() => {
-  console.log('SVH: Network patch (fetch/XHR) active and monitoring...');
+  const isDev = document.currentScript?.getAttribute('data-dev') !== 'false';
+  function log(message, ...args) {
+    if (isDev) {
+      console.log(message, ...args);
+    }
+  }
+
+  log('SVH: Network patch (fetch/XHR) active and monitoring...');
 
   const originalFetch = window.fetch;
   window.fetch = async function (...args) {
@@ -7,13 +14,13 @@
     const options = args[1] || {};
 
     if (options.method === 'POST') {
-      console.log(`SVH [Fetch POST]: ${url}`);
+      log(`SVH [Fetch POST]: ${url}`);
       try {
         const body = options.body;
         if (typeof body === 'string') {
           // Broad check for code saving indicators
           if (body.includes('form_option=save') || body.includes('code=') || body.includes('codigo_php')) {
-            console.log('SVH: Intercepted potential code save via Fetch', { url, bodyLength: body.length });
+            log('SVH: Intercepted potential code save via Fetch', { url, bodyLength: body.length });
             const params = new URLSearchParams(body);
             const code = params.get('code') || params.get('codigo_php');
             const eventName = params.get('event_nome') || params.get('nome_evento');
@@ -37,10 +44,10 @@
   const originalSend = XMLHttpRequest.prototype.send;
   XMLHttpRequest.prototype.send = function (body) {
     if (this._method === 'POST') {
-      console.log(`SVH [XHR POST]: ${this._url}`);
+      log(`SVH [XHR POST]: ${this._url}`);
       if (typeof body === 'string') {
         if (body.includes('form_option=save') || body.includes('code=') || body.includes('codigo_php')) {
-          console.log('SVH: Intercepted potential code save via XHR', { url: this._url, bodyLength: body.length });
+          log('SVH: Intercepted potential code save via XHR', { url: this._url, bodyLength: body.length });
           try {
             const params = new URLSearchParams(body);
             const code = params.get('code') || params.get('codigo_php');

@@ -2,6 +2,7 @@ import { ApiClient } from './lib/api-client';
 import { resolveSnapshotType } from './lib/snapshot-type';
 import { Storage } from './lib/storage';
 import { createSnapshotPayload } from './lib/snapshot-dto';
+import { log } from './lib/logger';
 
 const storage = new Storage();
 const api = new ApiClient(storage);
@@ -78,9 +79,9 @@ async function setTabContext(tabId: number, context: any) {
 
     if (changed) {
       await chrome.storage.local.set({ [`tab_ctx_${tabId}`]: updated });
-      console.log(`SVH Background: Context MERGED for tab ${tabId}:`, updated);
+      log(`SVH Background: Context MERGED for tab ${tabId}:`, updated);
     } else {
-      console.log(`SVH Background: Context received (No Change) for tab ${tabId}:`, context);
+      log(`SVH Background: Context received (No Change) for tab ${tabId}:`, context);
     }
   } catch (e) {
     console.error('SVH: Error setting tab context', e);
@@ -98,7 +99,7 @@ async function processOutbox() {
     const { outbox = [] } = await chrome.storage.local.get('outbox');
     if (outbox.length === 0) return;
 
-    console.log(`SVH: Processing outbox with ${outbox.length} items`);
+    log(`SVH: Processing outbox with ${outbox.length} items`);
     const remaining = [];
     for (const item of outbox) {
       try {
@@ -117,7 +118,7 @@ async function processOutbox() {
 
 // Initialize alarms and outbox
 async function initialize() {
-  console.log('SVH: Initializing background service worker');
+  log('SVH: Initializing background service worker');
   
   try {
     const alarms = await chrome.alarms.getAll();
@@ -148,7 +149,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // ignore.
   if (message.type === 'SVH_RELAY_TO_TOP') {
     const tabId = sender.tab?.id;
-    console.log(`SVH Background: SVH_RELAY_TO_TOP from tab=${tabId} frame=${sender.frameId} payload.type=${message.payload?.type}`);
+    log(`SVH Background: SVH_RELAY_TO_TOP from tab=${tabId} frame=${sender.frameId} payload.type=${message.payload?.type}`);
     if (tabId !== undefined) {
       chrome.webNavigation.getAllFrames({ tabId }).then((frames) => {
         if (!frames) return;
@@ -159,7 +160,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             .catch(() => { /* this frame has no listener — ignore */ });
         });
         // Best-effort log; we can't easily await the per-frame promises here.
-        setTimeout(() => console.log(`SVH Background: relay attempted on ${frames.length} frames (tab=${tabId})`), 50);
+        setTimeout(() => log(`SVH Background: relay attempted on ${frames.length} frames (tab=${tabId})`), 50);
       }).catch((err) => {
         console.error('SVH Background: webNavigation.getAllFrames failed', err);
       });
@@ -247,7 +248,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'HISTORY') {
     api.getHistory(message.params)
       .then((data) => {
-        console.log('SVH Background: History API raw response:', data);
+        log('SVH Background: History API raw response:', data);
         try { sendResponse({ ok: true, data }); } catch (e) {}
       })
       .catch((err) => {
@@ -263,7 +264,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (tabId !== undefined) {
         const ctx = await getTabContext(tabId);
         if (ctx && ctx.cod_prj && ctx.cod_apl && ctx.cod_prj !== 'Unknown' && ctx.cod_apl !== 'Unknown') {
-          console.log(`SVH Background: Registering presence on tab ${tabId} before conflicts check`, ctx);
+          log(`SVH Background: Registering presence on tab ${tabId} before conflicts check`, ctx);
           await api.presence(ctx).catch(() => {});
         }
       }
@@ -297,7 +298,7 @@ chrome.webRequest.onBeforeRequest.addListener(
       const formKeys = details.requestBody?.formData
         ? Object.keys(details.requestBody.formData)
         : null;
-      console.log(
+      log(
         `SVH Background: lib endpoint hit url=${url} method=${details.method}` +
         ` formKeys=${JSON.stringify(formKeys)}`,
       );
@@ -353,7 +354,7 @@ async function handleEventSave(details: chrome.webRequest.WebRequestBodyDetails)
     endpoint: 'event.php',
   });
 
-  console.log(`SVH: Intercepted event save. Project: [${payload.cod_prj}], App: [${payload.cod_apl}], Scope: [${payload.scope}]`);
+  log(`SVH: Intercepted event save. Project: [${payload.cod_prj}], App: [${payload.cod_apl}], Scope: [${payload.scope}]`);
   try {
     await api.sendSnapshot(payload);
   } catch (err) {
@@ -380,7 +381,7 @@ async function handleMethodSave(details: chrome.webRequest.WebRequestBodyDetails
     endpoint: 'methods.php',
   });
 
-  console.log(`SVH: Intercepted method save. Project: [${payload.cod_prj}], App: [${payload.cod_apl}], Scope: [${payload.scope}]`);
+  log(`SVH: Intercepted method save. Project: [${payload.cod_prj}], App: [${payload.cod_apl}], Scope: [${payload.scope}]`);
   try {
     await api.sendSnapshot(payload);
   } catch (err) {
@@ -446,12 +447,12 @@ async function handleLibOpen(details: chrome.webRequest.WebRequestBodyDetails) {
   const kind = classifyLibFieldModule(fieldModule);
 
   if (!kind) {
-    console.log(`SVH: Lib open ignored, unknown field_module=${fieldModule}`);
+    log(`SVH: Lib open ignored, unknown field_module=${fieldModule}`);
     return;
   }
 
   const libName = stripPhpExtension(fieldFile);
-  console.log(`SVH: Lib opened, tab=${details.tabId} kind=${kind} file=${fieldFile} name=${libName}`);
+  log(`SVH: Lib opened, tab=${details.tabId} kind=${kind} file=${fieldFile} name=${libName}`);
 
   await rememberLibKind(details.tabId, kind);
 
@@ -485,7 +486,7 @@ async function handleLibOpen(details: chrome.webRequest.WebRequestBodyDetails) {
   };
 
   await chrome.storage.local.set({ [`tab_ctx_${details.tabId}`]: updated });
-  console.log(`SVH: Lib context updated for tab ${details.tabId}:`, updated);
+  log(`SVH: Lib context updated for tab ${details.tabId}:`, updated);
   await broadcastContextPush(details.tabId, updated);
 }
 
@@ -499,7 +500,7 @@ async function handleLibSave(details: chrome.webRequest.WebRequestBodyDetails) {
   const libCode = data.field_data?.[0];
 
   if (!fieldFile || !libCode) {
-    console.log('SVH: Lib save missing field_file or field_data, skipping', {
+    log('SVH: Lib save missing field_file or field_data, skipping', {
       hasFieldFile: !!fieldFile,
       hasFieldData: !!libCode,
     });
@@ -509,7 +510,7 @@ async function handleLibSave(details: chrome.webRequest.WebRequestBodyDetails) {
   const cachedKind = await getLibKind(details.tabId);
 
   if (cachedKind === 'scriptcase_internal') {
-    console.log('SVH: Skipping save of built-in Scriptcase library');
+    log('SVH: Skipping save of built-in Scriptcase library');
     return;
   }
 
@@ -539,7 +540,7 @@ async function handleLibSave(details: chrome.webRequest.WebRequestBodyDetails) {
     lib_kind: cachedKind ?? null,
   });
 
-  console.log(`SVH: Intercepted lib save. Project: [${payload.cod_prj}], Type: [${payload.type}], Scope: [${payload.scope}]`);
+  log(`SVH: Intercepted lib save. Project: [${payload.cod_prj}], Type: [${payload.type}], Scope: [${payload.scope}]`);
 
   try {
     await api.sendSnapshot(payload);

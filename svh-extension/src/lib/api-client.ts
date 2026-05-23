@@ -1,4 +1,5 @@
 import { Storage } from './storage';
+import { log } from './logger';
 
 export class ApiClient {
   constructor(private storage: Storage) {}
@@ -19,7 +20,7 @@ export class ApiClient {
   private async logRequest(method: string, url: string, headers: any, body?: any) {
     const headerStr = Object.entries(headers).map(([k, v]) => `-H "${k}: ${v}"`).join(' ');
     const bodyStr = body ? `-d '${JSON.stringify(body)}'` : '';
-    console.log(`SVH API Request: curl -X ${method} "${url}" ${headerStr} ${bodyStr}`);
+    log(`SVH API Request: curl -X ${method} "${url}" ${headerStr} ${bodyStr}`);
   }
 
   async sendSnapshot(payload: any): Promise<void> {
@@ -44,7 +45,7 @@ export class ApiClient {
       console.error(`SVH: Snapshot failed (HTTP ${res.status}): ${errText}`);
       throw new Error(`HTTP ${res.status}`);
     }
-    console.log('SVH: Snapshot sent successfully');
+    log('SVH: Snapshot sent successfully');
   }
 
   async presence(ctx: any): Promise<void> {
@@ -132,7 +133,7 @@ export class ApiClient {
     if (!base) throw new Error('API URL not configured');
 
     const url = `${base}/api/health`;
-    console.log(`SVH: Health check -> ${url}`);
+    log(`SVH: Health check -> ${url}`);
     const res = await fetch(url);
     if (!res.ok) throw new Error('Health check failed');
   }

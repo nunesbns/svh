@@ -13,6 +13,20 @@ const entries = [
 ];
 
 async function build() {
+  // Read .env file if it exists
+  let isDev = false;
+  if (fs.existsSync('.env')) {
+    const envContent = fs.readFileSync('.env', 'utf-8');
+    for (const line of envContent.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const parts = trimmed.split('=');
+      if (parts[0].trim() === 'IS_DEV') {
+        isDev = parts.slice(1).join('=').trim() === 'true';
+      }
+    }
+  }
+
   for (const { entry, out } of entries) {
     const isBackground = entry.includes('background.ts');
     const ctx = await esbuild.context({
@@ -23,6 +37,9 @@ async function build() {
       target: 'chrome100',
       format: isBackground ? 'esm' : 'iife',
       tsconfig: 'tsconfig.json',
+      define: {
+        __IS_DEV__: String(isDev),
+      },
     });
 
     if (watch) {
