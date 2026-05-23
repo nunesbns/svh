@@ -96,8 +96,8 @@ export class Sidebar {
     this.modalContainer.id = 'svh-code-modal';
     this.modalContainer.style.cssText = `
       position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-      background: rgba(0,0,0,0.8); backdrop-filter: blur(8px);
-      z-index: 1000000; display: none; align-items: center; justify-content: center;
+      backdrop-filter: blur(8px);z-index: 1000000; display: none; 
+      align-items: center; justify-content: center;
     `;
     document.body.appendChild(this.modalContainer);
   }
@@ -426,8 +426,8 @@ export class Sidebar {
           </div>
           <div style="display:flex; flex-direction:column;">
             ${items.length ? items.map(i => {
-              const loading = this.loadingItemId === i.id;
-              return `
+      const loading = this.loadingItemId === i.id;
+      return `
                 <div class="svh-history-item${loading ? ' is-loading' : ''}" style="padding:10px 16px; border-bottom:1px solid #e2e8f0; cursor:${loading ? 'wait' : 'pointer'}; transition:background 0.2s; display:flex; align-items:center; justify-content:space-between; gap:8px;" data-id="${this.escapeHtml(i.id)}">
                   <div style="min-width:0; flex:1;">
                     <div style="font-weight:600; font-size:13px; color:#1e293b; margin-bottom:2px;">${this.escapeHtml(i.user_sc_login)}</div>
@@ -436,7 +436,7 @@ export class Sidebar {
                   ${loading ? `<div class="svh-spinner" aria-label="Loading"></div>` : ''}
                 </div>
               `;
-            }).join('') : `
+    }).join('') : `
               <div style="padding:40px 20px; color:#94a3b8; text-align:center;">
                 <div style="font-size:13px;">No snapshots found for this scope.</div>
               </div>
