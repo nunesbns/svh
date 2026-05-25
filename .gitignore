@@ -20,10 +20,21 @@ phpstan.neon
 # Laravel
 svh-api/bootstrap/cache/*
 !svh-api/bootstrap/cache/.gitignore
+
 svh-api/storage/app/*
 !svh-api/storage/app/.gitignore
+!svh-api/storage/app/public/
+!svh-api/storage/app/public/.gitignore
+
 svh-api/storage/framework/*
 !svh-api/storage/framework/.gitignore
+!svh-api/storage/framework/cache/
+!svh-api/storage/framework/cache/.gitignore
+!svh-api/storage/framework/sessions/
+!svh-api/storage/framework/sessions/.gitignore
+!svh-api/storage/framework/views/
+!svh-api/storage/framework/views/.gitignore
+
 svh-api/storage/logs/*
 !svh-api/storage/logs/.gitignore
 

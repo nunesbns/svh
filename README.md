@@ -96,11 +96,11 @@ Centralized hub for persistence and management.
 
 5.  Prepare the writable directories. The container runs as `www-data` (UID 33) but `storage/`, `bootstrap/cache/` and `public/` are bind-mounted from the host. Open them up for the container:
     ```bash
-    docker run --rm -v "$(pwd)":/app alpine sh -c "
-      mkdir -p /app/storage/framework/{cache/data,sessions,testing,views} \
-               /app/storage/logs /app/bootstrap/cache &&
-      chmod -R 777 /app/storage /app/bootstrap/cache /app/public
-    "
+    # If running locally with appropriate privileges:
+    chmod -R 777 storage bootstrap/cache public
+    
+    # Or using Docker:
+    docker run --rm -v "$(pwd)":/app alpine chmod -R 777 /app/storage /app/bootstrap/cache /app/public
     ```
 
 6.  Build and start the stack:
@@ -164,8 +164,9 @@ docker compose down
 - **`Permission denied` writing to `storage/logs/laravel.log` or `bootstrap/cache/`** — re-run the `chmod 777` step above. Files created inside the container are owned by `www-data`; if you change ownership on the host, the container loses write access.
 - **`EACCES` on `npm install` in the host** — make sure `node_modules/` is owned by your host user (`ls -la node_modules`). If a stray Docker volume left it owned by `root`, remove it with `docker run --rm -v "$(pwd)":/app alpine rm -rf /app/node_modules` and reinstall.
 - **404 on `/css/filament/...` or `/js/filament/...`** — Filament assets were not published. Run `docker compose exec app php artisan filament:assets`.
-- **`Please provide a valid cache path`** — the `storage/framework/views` directory is missing. Re-run the directory preparation step in 5.
+- **`Please provide a valid cache path`** — a framework directory like `storage/framework/views` is missing. We now commit empty `.gitignore` files to keep the directory structure in Git, but if it is still missing, recreate it using `mkdir -p storage/framework/{cache,sessions,views}` on the host.
 - **Octane keeps restarting with `copy(/app/public/frankenphp-worker.php): Failed to open stream`** — `public/` is not writable by the container. Fix with `chmod -R 777 public` (or via the `docker run alpine` snippet above).
+- **Docker health check shows container as `unhealthy`** — The Dockerfile health check queries `/health` on port 8080, but routes inside `routes/api.php` are prefixed with `/api` by default, making the endpoint `/api/health`. You can safely verify that the application is running by testing `http://localhost:8080/api/health`.
 
 ### Chrome Extension
 

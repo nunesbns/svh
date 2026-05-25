@@ -21,7 +21,11 @@ This is the central API hub for the Scriptcase Versioning Hub (SVH) ecosystem. I
 ## 📦 Setup
 
 1.  **Clone & Install**:
+    Ensure that Laravel's storage directories have proper write permissions for both host and container access:
     ```bash
+    # Configure permissions so both the host and the container can write to them
+    chmod -R 777 storage bootstrap/cache public
+    
     composer install
     npm install
     npm run build
@@ -31,12 +35,17 @@ This is the central API hub for the Scriptcase Versioning Hub (SVH) ecosystem. I
 2.  **Environment**:
     ```bash
     cp .env.example .env
-    # Configure DB_HOST, REDIS_HOST, etc.
+    # Generate the application encryption key
+    php artisan key:generate
     ```
+    *Note: If running the application locally on the host, configure `DB_HOST` and `REDIS_HOST` in `.env` (typically changing them from `host.docker.internal` to `127.0.0.1`).*
+
 3.  **Database**:
+    Ensure the target database (`svh_api` by default) exists on your PostgreSQL server before migrating. Then run:
     ```bash
     php artisan migrate
     ```
+
 4.  **Assets**:
     ```bash
     npm install
@@ -56,10 +65,34 @@ This is the central API hub for the Scriptcase Versioning Hub (SVH) ecosystem. I
 
 The project includes a production-ready Docker configuration using FrankenPHP.
 
-```bash
-docker compose up -d
-```
-*Note: If styles appear as plain text in the browser, run `npm install && npm run build` on the host to generate the Vite manifest, and `docker compose exec app php artisan filament:assets` to publish Filament core styles.*
+### ⚙️ Docker Setup Steps
+
+1. **Prepare Environment**:
+   Ensure you have configured the `.env` file and set the correct write permissions:
+   ```bash
+   cp .env.example .env
+   
+   # Set permissions so the container's www-data user can write to storage, cache and public assets
+   chmod -R 777 storage bootstrap/cache public
+   
+   # Generate application key (this will write the key to the host's .env file)
+   php artisan key:generate
+   ```
+
+2. **Create Database**:
+   The default configuration connects to a PostgreSQL service on the host via `host.docker.internal`. Ensure the database (`svh_api`) is created. If using the default `opencodeco-postgres` container, you can run:
+   ```bash
+   docker exec -i opencodeco-postgres psql -U postgres -c "CREATE DATABASE svh_api;"
+   ```
+
+3. **Deploy Container**:
+   ```bash
+   docker compose up -d
+   ```
+   *Note: If styles appear as plain text in the browser, run `npm install && npm run build` on the host to generate the Vite manifest, and `docker compose exec app php artisan filament:assets` to publish Filament core styles.*
+
+### 🔍 Troubleshooting Health Check
+The Dockerfile has a healthcheck querying `/health` on port 8080. If your container shows as `unhealthy` despite the application responding correctly, note that Laravel route files by default prefix routes in `routes/api.php` with `/api`, making the route `/api/health`. You can safely query `http://localhost:8080/api/health` to verify.
 
 ## 📋 API Endpoints
 
