@@ -43,6 +43,12 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends supervisor curl ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
+# Alinha UID/GID do www-data com o host para desenvolvimento (se especificado)
+ARG UID=33
+ARG GID=33
+RUN if [ "$GID" -ne 33 ]; then groupmod -o -g ${GID} www-data; fi \
+ && if [ "$UID" -ne 33 ]; then usermod -o -u ${UID} -g www-data www-data; fi
+
 WORKDIR /app
 
 # Código aplicação

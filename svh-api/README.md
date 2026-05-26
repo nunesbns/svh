@@ -21,10 +21,10 @@ This is the central API hub for the Scriptcase Versioning Hub (SVH) ecosystem. I
 ## 📦 Setup
 
 1.  **Clone & Install**:
-    Ensure that Laravel's storage directories have proper write permissions for both host and container access:
+    Ensure that Laravel's storage directories have proper write permissions. For development under Docker, permissions are automatically aligned with your host user (using matching UID/GID). On standard environments:
     ```bash
-    # Configure permissions so both the host and the container can write to them
-    chmod -R 777 storage bootstrap/cache public
+    # Configure standard group-writeable permissions for development
+    chmod -R 775 storage bootstrap/cache
     
     composer install
     npm install
@@ -68,12 +68,12 @@ The project includes a production-ready Docker configuration using FrankenPHP.
 ### ⚙️ Docker Setup Steps
 
 1. **Prepare Environment**:
-   Ensure you have configured the `.env` file and set the correct write permissions:
+   Ensure you have configured the `.env` file. By default, the container's `www-data` user will be configured to match your host UID/GID (defaulting to 1000) so that permission conflicts are avoided without needing `chmod 777`:
    ```bash
    cp .env.example .env
    
-   # Set permissions so the container's www-data user can write to storage, cache and public assets
-   chmod -R 777 storage bootstrap/cache public
+   # Configure standard permissions (which work automatically since container UID/GID matches the host)
+   chmod -R 775 storage bootstrap/cache
    
    # Generate application key (this will write the key to the host's .env file)
    php artisan key:generate

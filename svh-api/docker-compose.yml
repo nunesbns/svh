@@ -1,7 +1,11 @@
 services:
   app:
     build:
+      context: .
       target: runtime
+      args:
+        UID: ${DOCKER_UID:-1000}
+        GID: ${DOCKER_GID:-1000}
     volumes:
       - .:/app
       - /app/vendor
