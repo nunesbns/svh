@@ -1,0 +1,4 @@
+[tools]
+php = "8.4"
+node = "22"
+composer = "2"

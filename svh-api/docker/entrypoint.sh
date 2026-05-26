@@ -11,6 +11,9 @@ php /app/artisan migrate --force --no-interaction
 # Storage
 php /app/artisan storage:link || true
 
+# Publica assets do Filament
+php /app/artisan filament:assets || true
+
 # Recompila caches caso env tenha mudado entre starts
 php /app/artisan config:cache
 php /app/artisan route:cache
