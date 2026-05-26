@@ -38,6 +38,25 @@ A `.mise.toml` configuration file is included in the project root. Once you have
 mise install
 ```
 
+### 🐳 Running PostgreSQL & Redis with Docker (Optional)
+
+If you prefer not to install PostgreSQL and Redis directly on your host machine, you can run them using Docker via the [opencodeco/stack](https://github.com/opencodeco/stack) CLI tool:
+
+1. **Install the `stack` CLI**:
+   ```bash
+   bash -c "$(curl -fsSL https://raw.githubusercontent.com/opencodeco/stack/main/install.sh)"
+   ```
+
+2. **Start the specific services**:
+   ```bash
+   stack redis
+   stack postgres
+   ```
+
+By default, this will spin up:
+- **PostgreSQL** at `localhost:5432` (user `postgres`, password `opencodeco`) along with pgAdmin at `http://localhost:8039`.
+- **Redis** at `localhost:6379` along with RedisInsight at `http://localhost:8032`.
+
 ---
 
 ## 📦 Setup
