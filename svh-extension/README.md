@@ -17,31 +17,30 @@ This is the browser extension for the Scriptcase Versioning Hub (SVH). It interc
 - **UI Framework**: Preact + Tailwind CSS
 - **Bundler**: esbuild
 
-## 📦 Development & Build
+## 📦 Setup & Development
 
-1.  **Install Dependencies**:
-    ```bash
-    npm install
-    ```
-2.  **Build**:
-    ```bash
-    npm run build
-    ```
-    This will generate the `dist/` folder.
-3.  **Watch Mode**:
-    ```bash
-    npm run watch
-    ```
+1. **Install Dependencies**:
+   ```bash
+   npm install
+   ```
 
-## 📥 Installation
+2. **Build the Extension**:
+   For development (watch mode):
+   ```bash
+   npm run watch
+   ```
+   
+   For production build:
+   ```bash
+   npm run build
+   ```
+   This will generate the `dist/` folder.
 
-1.  Go to `chrome://extensions/`.
-2.  Enable **Developer mode**.
-3.  Click **Load unpacked**.
-4.  Select the `svh-extension/dist` folder.
+3. **Load into Chrome**:
+   - Open Chrome and navigate to `chrome://extensions/`.
+   - Enable **Developer mode** (toggle in the top-right corner).
+   - Click **Load unpacked** and select the `dist/` folder inside the `svh-extension` directory.
 
-## ⚙️ Configuration
-
-Once installed, click on the extension icon and select **Options**. You will need to provide:
-- **API URL**: The address of your SVH API Hub.
-- **API Key**: Your personal developer API key (generated in the SVH Admin Panel).
+4. **Configuration**:
+   - Click the extension icon in your browser toolbar and go to **Options**.
+   - Set the **API URL** (e.g., `http://localhost:8080`) and your **API Key** (generated in the SVH Admin Panel).

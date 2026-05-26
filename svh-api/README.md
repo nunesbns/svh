@@ -69,29 +69,21 @@ mise install
    php artisan filament:assets
    ```
 
----
-
-## 🐳 Docker Deployment
-
-The project includes a production-ready Docker configuration using FrankenPHP.
-
-### Setup Steps with Docker:
-
-1. **Prepare Environment**:
-   ```bash
-   cp .env.example .env
-   php artisan key:generate
-   ```
-
-2. **Create Database**:
+5. **Create Database**:
    If using the default `opencodeco-postgres` container, you can create the database with:
    ```bash
    docker exec -i opencodeco-postgres psql -U postgres -c "CREATE DATABASE svh_api;"
    ```
 
-3. **Deploy Container**:
+6. **Deploy Container**:
    ```bash
    docker compose up -d --build --force-recreate
+   ```
+
+6. **Create your user**:
+
+   ```bash
+   docker exec -it svh-api-app-1 filament:user
    ```
 
 ### 🔍 Health Check & Troubleshooting
@@ -103,7 +95,12 @@ docker compose logs -f app
 ## 📋 API Endpoints
 
 - `POST /api/v1/snapshots`: Send a new code snapshot.
-- `POST /api/v1/presence`: Send developer presence heartbeat.
-- `GET /api/v1/history`: Retrieve snapshot history for an application.
 - `GET /api/v1/snapshots/{id}`: Get full snapshot content.
+- `POST /api/v1/presence`: Send developer presence heartbeat.
+- `GET /api/v1/presence/conflicts`: Retrieve presence conflicts.
+- `GET /api/v1/history`: Retrieve snapshot history for an application.
+- `POST /api/v1/diff/raw`: Compare two raw code inputs and calculate diff.
 - `GET /api/v1/diff/{a}/{b}`: Get a pre-calculated diff between two versions.
+- `POST /api/v1/restore`: Restore a snapshot.
+- `GET /api/health`: Retrieve the API application health status.
+- `GET /api/metrics`: Retrieve real-time operational metrics.
