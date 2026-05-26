@@ -74,7 +74,7 @@ LABEL org.opencontainers.image.title="Scriptcase Versioning Hub" \
 
 EXPOSE 8080 8443
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
-  CMD curl -fsS http://127.0.0.1:8080/health || exit 1
+  CMD curl -fsS http://127.0.0.1:8080/api/health || exit 1
 
 USER www-data
 ENTRYPOINT ["entrypoint"]
