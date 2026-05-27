@@ -348,6 +348,48 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/v1/validate-php:
+    post:
+      summary: Validate PHP Code Syntax
+      description: Receives a code buffer, replaces Scriptcase-specific field and global placeholders with valid PHP variables, and runs an isolated syntax check via `php -l`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content
+              properties:
+                content:
+                  type: string
+                  description: The raw PHP code buffer to validate.
+                  example: "if ({status} == 'active') { [usr_login] = 'admin'; }"
+      responses:
+        '200':
+          description: Code validation completed.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                    description: True if no syntax errors were found.
+                    example: true
+                  error:
+                    type: string
+                    description: The compile error message if syntax validation failed.
+                    nullable: true
+                    example: "syntax error, unexpected token \"}\""
+                  line:
+                    type: integer
+                    description: The line number in the original code where the syntax error was found.
+                    nullable: true
+                    example: 3
+        '401':
+          $ref: '#/components/responses/401Unauthorized'
+
 components:
   securitySchemes:
     BearerAuth:

@@ -22,12 +22,14 @@ class PHPValidationController extends Controller
         // Preprocess Scriptcase globals: [global] -> $sc_global_global (using negative lookbehind)
         $code = preg_replace('/(?<![a-zA-Z0-9_\]\)\$])\[([a-zA-Z_][a-zA-Z0-9_]*)\]/', '$sc_global_$1', $code);
 
-        // Prepend <?php if not present (Scriptcase often excludes open tags)
-        $prepended = false;
-        if (!str_contains($code, '<?php') && !str_contains($code, '<?')) {
-            $code = "<?php\n" . $code;
-            $prepended = true;
-        }
+        // Strip opening php tag (<?php or <?) at the start, preserving leading newlines/whitespace
+        $code = preg_replace('/^(\s*)<\?(php)?/i', '$1', $code);
+
+        // Strip closing php tag at the end, preserving trailing newlines/whitespace.
+        $code = preg_replace('/\?' . '>(\s*)$/', '$1', $code);
+
+        // Always prepend opening tag to ensure standard syntax validation as PHP
+        $code = "<?php\n" . $code;
 
         $descriptorspec = [
             0 => ["pipe", "r"], // stdin
@@ -63,7 +65,7 @@ class PHPValidationController extends Controller
                 if (preg_match('/Parse error:\s+(.+) in .*? on line (\d+)/i', $output, $matches)) {
                     $errorMsg = trim($matches[1]);
                     $rawLine = (int)$matches[2];
-                    $line = $prepended ? max(1, $rawLine - 1) : $rawLine;
+                    $line = max(1, $rawLine - 1);
                 } else {
                     $errorMsg = trim($output) ?: 'Erro de sintaxe desconhecido.';
                 }
