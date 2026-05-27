@@ -390,6 +390,53 @@ paths:
         '401':
           $ref: '#/components/responses/401Unauthorized'
 
+  /api/v1/format-php:
+    post:
+      summary: Format PHP Code (PSR-12)
+      description: Receives a code buffer, runs syntax validation, and formats it using Laravel Pint with the PSR-12 preset. Preserves Scriptcase placeholders.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content
+              properties:
+                content:
+                  type: string
+                  description: The raw PHP code buffer to format.
+                  example: "if({status}=='active'){echo 'ok';}"
+      responses:
+        '200':
+          description: Code formatting completed or syntax error detected.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                    description: True if code was successfully formatted.
+                    example: true
+                  content:
+                    type: string
+                    description: The beautifully formatted code block.
+                    nullable: true
+                    example: "if ({status} == 'active') {\n    echo 'ok';\n}"
+                  error:
+                    type: string
+                    description: The syntax error message if the code was syntactically invalid.
+                    nullable: true
+                    example: null
+                  line:
+                    type: integer
+                    description: The line number of the syntax error if applicable.
+                    nullable: true
+                    example: null
+        '401':
+          $ref: '#/components/responses/401Unauthorized'
+
 components:
   securitySchemes:
     BearerAuth:

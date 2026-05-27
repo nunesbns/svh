@@ -364,6 +364,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'FORMAT_PHP') {
+    api.formatPhp(message.content)
+      .then((data) => {
+        try { sendResponse({ ok: true, data }); } catch (e) {}
+      })
+      .catch((err) => {
+        console.error('SVH: Format PHP error', err);
+        try { sendResponse({ ok: false, error: err.message || 'Unknown error' }); } catch (e) {}
+      });
+    return true;
+  }
+
   if (message.type === 'CONFLICTS') {
     const tabId = sender.tab?.id;
     const checkConflictsFlow = async () => {

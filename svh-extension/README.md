@@ -9,6 +9,7 @@ This is the browser extension for the Scriptcase Versioning Hub (SVH). It interc
 - **Timeline Sidebar**: View history and diffs directly within the Scriptcase IDE.
 - **One-Click Restore**: Restore previous versions of events and libraries.
 - **Check Syntax**: Validate the PHP code currently on screen. Opens a dialog detailing syntax validation results and lets you jump directly to the line of the error in the editor.
+- **Code Formatter**: Formats the editor code in place according to PSR-12 standard styling using Pint on the backend.
 - **Offline Sync**: Queues snapshots if the API is temporarily unreachable.
 
 ## 🛠️ Tech Stack

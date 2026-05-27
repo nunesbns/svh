@@ -112,6 +112,10 @@ function init() {
     checkSyntaxBtn.id = 'svh-check-syntax-btn';
     checkSyntaxBtn.innerText = '🔍 Check Syntax';
 
+    const formatBtn = document.createElement('button');
+    formatBtn.id = 'svh-format-btn';
+    formatBtn.innerText = '✨ Format PSR-12';
+
     if (isLibEditor) {
       // Floating button container for the lib editor: fixed to the top-right corner
       // because the lib page has no top toolbar to attach to.
@@ -154,8 +158,21 @@ function init() {
         box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
       `;
 
+      formatBtn.style.cssText = `
+        padding: 6px 14px;
+        background: #4f46e5;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 600;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+      `;
+
       btnContainer.appendChild(toggle);
       btnContainer.appendChild(checkSyntaxBtn);
+      btnContainer.appendChild(formatBtn);
     } else {
       toggle.style.cssText = `
         margin-left: 10px;
@@ -187,8 +204,24 @@ function init() {
         gap: 4px;
       `;
 
+      formatBtn.style.cssText = `
+        margin-left: 8px;
+        padding: 4px 12px;
+        background: #4f46e5;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        vertical-align: middle;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      `;
+
       inlineTarget!.appendChild(toggle);
       inlineTarget!.appendChild(checkSyntaxBtn);
+      inlineTarget!.appendChild(formatBtn);
     }
 
     toggle.onclick = (e) => {
@@ -207,6 +240,12 @@ function init() {
       e.preventDefault();
       e.stopPropagation();
       runSyntaxCheck();
+    };
+
+    formatBtn.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      runFormatCode();
     };
   };
 
@@ -383,6 +422,63 @@ function init() {
     broadcastToFrames({ type: 'SVH_GET_EDITOR_VALUE' });
   };
 
+  const runFormatCode = () => {
+    showSyntaxResultModal({ loading: true });
+
+    let settled = false;
+    const listener = (event: MessageEvent) => {
+      if (event.data?.type === 'SVH_EDITOR_VALUE_RESULT') {
+        if (settled) return;
+        settled = true;
+        window.removeEventListener('message', listener);
+        clearTimeout(timeoutId);
+        const payload = typeof event.data.payload === 'string' ? event.data.payload : '';
+
+        chrome.runtime.sendMessage({ type: 'FORMAT_PHP', content: payload }, (res) => {
+          if (chrome.runtime.lastError) {
+            console.error('SVH: Format runtime error', chrome.runtime.lastError.message);
+            showSyntaxResultModal({ loading: false, valid: false, error: 'Communication error: extension context may have been reloaded.' });
+            return;
+          }
+          if (res?.ok && res.data) {
+            if (res.data.valid) {
+              // Hide loading modal
+              const modal = document.getElementById('svh-syntax-modal');
+              if (modal) modal.style.display = 'none';
+
+              // Restore the formatted content back into the editor
+              broadcastToFrames({ type: 'SVH_RESTORE_CONTENT', payload: res.data.content });
+            } else {
+              // Syntax error prevented formatting: show the error details to user
+              showSyntaxResultModal({
+                loading: false,
+                valid: false,
+                error: res.data.error,
+                line: res.data.line
+              });
+            }
+          } else {
+            showSyntaxResultModal({
+              loading: false,
+              valid: false,
+              error: res?.error || 'Failed to format PHP.'
+            });
+          }
+        });
+      }
+    };
+    window.addEventListener('message', listener);
+
+    const timeoutId = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener('message', listener);
+      showSyntaxResultModal({ loading: false, valid: false, error: 'Timeout waiting for editor content.' });
+    }, 2000);
+
+    broadcastToFrames({ type: 'SVH_GET_EDITOR_VALUE' });
+  };
+
   /**
    * Removes the existing button (if any) and re-runs attachUI. Called when
    * the tab context changes (for instance, the user navigated from an event
@@ -393,6 +489,8 @@ function init() {
     if (existing) existing.remove();
     const existingSyntax = document.getElementById('svh-check-syntax-btn');
     if (existingSyntax) existingSyntax.remove();
+    const existingFormat = document.getElementById('svh-format-btn');
+    if (existingFormat) existingFormat.remove();
     const existingContainer = document.getElementById('svh-button-container');
     if (existingContainer) existingContainer.remove();
     attachUI();

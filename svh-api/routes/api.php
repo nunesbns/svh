@@ -22,6 +22,7 @@ Route::prefix('v1')
         Route::get('/diff/{a}/{b}', [DiffController::class, 'show']);
         Route::post('/restore', [RestoreController::class, 'store']);
         Route::post('/validate-php', [PHPValidationController::class, 'validateCode']);
+        Route::post('/format-php', [PHPValidationController::class, 'formatCode']);
     });
 
 

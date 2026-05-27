@@ -147,6 +147,25 @@ export class ApiClient {
     return res.json();
   }
 
+  async formatPhp(content: string): Promise<any> {
+    const base = await this.baseUrl();
+    if (!base) throw new Error('API URL not configured');
+
+    const url = `${base}/api/v1/format-php`;
+    const headers = await this.headers();
+    const payload = { content };
+    await this.logRequest('POST', url, headers, payload);
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
   async healthCheck(): Promise<void> {
     const base = await this.baseUrl();
     if (!base) throw new Error('API URL not configured');
