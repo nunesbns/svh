@@ -66,6 +66,21 @@
       log('SVH MAIN: RESTORE_CONTENT applied=' + ok);
       window.postMessage({ type: 'SVH_MAIN_RESTORE_CONTENT_RESULT', ok }, '*');
     }
+
+    if (data.type === 'SVH_MAIN_FOCUS_ERROR_LINE') {
+      const cm = getCodeMirrorInstance();
+      if (cm && typeof cm.setCursor === 'function') {
+        try {
+          const line = parseInt(data.payload, 10);
+          if (!isNaN(line)) {
+            cm.focus();
+            cm.setCursor({ line: line - 1, ch: 0 });
+          }
+        } catch (e) {
+          console.error('SVH MAIN: Failed to set cursor', e);
+        }
+      }
+    }
   });
 
   log('SVH MAIN: editor bridge installed');

@@ -108,14 +108,29 @@ function init() {
     toggle.id = 'svh-toggle-btn';
     toggle.innerText = '🕒 SVH History';
 
+    const checkSyntaxBtn = document.createElement('button');
+    checkSyntaxBtn.id = 'svh-check-syntax-btn';
+    checkSyntaxBtn.innerText = '🔍 Check Syntax';
+
     if (isLibEditor) {
-      // Floating button for the lib editor: fixed to the top-right corner
+      // Floating button container for the lib editor: fixed to the top-right corner
       // because the lib page has no top toolbar to attach to.
+      let btnContainer = document.getElementById('svh-button-container');
+      if (!btnContainer) {
+        btnContainer = document.createElement('div');
+        btnContainer.id = 'svh-button-container';
+        btnContainer.style.cssText = `
+          position: fixed;
+          top: 8px;
+          right: 12px;
+          z-index: 999998;
+          display: flex;
+          gap: 8px;
+        `;
+        document.body.appendChild(btnContainer);
+      }
+
       toggle.style.cssText = `
-        position: fixed;
-        top: 8px;
-        right: 12px;
-        z-index: 999998;
         padding: 6px 14px;
         background: #2563eb;
         color: white;
@@ -126,6 +141,21 @@ function init() {
         font-weight: 600;
         box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
       `;
+
+      checkSyntaxBtn.style.cssText = `
+        padding: 6px 14px;
+        background: #0f766e;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 600;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+      `;
+
+      btnContainer.appendChild(toggle);
+      btnContainer.appendChild(checkSyntaxBtn);
     } else {
       toggle.style.cssText = `
         margin-left: 10px;
@@ -141,6 +171,24 @@ function init() {
         align-items: center;
         gap: 4px;
       `;
+
+      checkSyntaxBtn.style.cssText = `
+        margin-left: 8px;
+        padding: 4px 12px;
+        background: #0f766e;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        vertical-align: middle;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      `;
+
+      inlineTarget!.appendChild(toggle);
+      inlineTarget!.appendChild(checkSyntaxBtn);
     }
 
     toggle.onclick = (e) => {
@@ -155,11 +203,184 @@ function init() {
       }
     };
 
-    if (isLibEditor) {
-      document.body.appendChild(toggle);
-    } else {
-      inlineTarget!.appendChild(toggle);
+    checkSyntaxBtn.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      runSyntaxCheck();
+    };
+  };
+
+  const broadcastToFrames = (message: any) => {
+    const visit = (win: Window) => {
+      try {
+        win.postMessage(message, '*');
+      } catch {
+        // ignore
+      }
+      try {
+        for (let i = 0; i < win.frames.length; i++) {
+          visit(win.frames[i]);
+        }
+      } catch {
+        // cross-origin
+      }
+    };
+    visit(window.top || window);
+  };
+
+  const escapeHtml = (str: string): string => {
+    return String(str ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  };
+
+  const showSyntaxResultModal = (result: { loading: boolean; valid?: boolean; error?: string; line?: number }) => {
+    let modal = document.getElementById('svh-syntax-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'svh-syntax-modal';
+      modal.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+        background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(4px);
+        z-index: 2000000; display: flex; align-items: center; justify-content: center;
+        font-family: system-ui, -apple-system, sans-serif;
+      `;
+      document.body.appendChild(modal);
     }
+
+    if (result.loading) {
+      modal.innerHTML = `
+        <div style="background: #fff; border-radius: 8px; width: 350px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.15); overflow: hidden; border: 1px solid #e2e8f0; padding: 24px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 16px;">
+          <div class="svh-syntax-spinner" style="width: 32px; height: 32px; border: 3px solid #e2e8f0; border-top-color: #0f766e; border-radius: 50%; animation: svh-syntax-spin 0.8s linear infinite;"></div>
+          <div style="font-weight: 600; color: #0f766e; font-size: 15px;">Checking PHP Syntax...</div>
+          <div style="color: #64748b; font-size: 13px;">Please wait while the code is validated.</div>
+        </div>
+        <style>
+          @keyframes svh-syntax-spin { to { transform: rotate(360deg); } }
+        </style>
+      `;
+      modal.style.display = 'flex';
+      return;
+    }
+
+    if (result.valid) {
+      modal.innerHTML = `
+        <div style="background: #fff; border-radius: 8px; width: 400px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.15); overflow: hidden; border: 1px solid #bbf7d0;">
+          <div style="background: #dcfce7; padding: 20px; display: flex; align-items: center; gap: 15px;">
+            <div style="font-size: 32px;">✅</div>
+            <div>
+              <h3 style="margin: 0; color: #166534; font-size: 18px; font-weight: 700;">Syntax Valid!</h3>
+              <p style="margin: 5px 0 0 0; color: #15803d; font-size: 14px;">No errors found.</p>
+            </div>
+          </div>
+          <div style="padding: 24px; text-align: center;">
+            <p style="margin: 0 0 20px 0; color: #475569; font-size: 14px; line-height: 1.5;">
+              The PHP code is syntactically correct.
+            </p>
+            <button id="close-syntax-modal" style="width: 100%; background: #166534; color: #fff; border: none; padding: 10px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: background 0.2s;">
+              OK
+            </button>
+          </div>
+        </div>
+      `;
+    } else {
+      const errorMsg = result.error || 'Unknown syntax error.';
+      const lineInfo = result.line ? ` on line <b>${result.line}</b>` : '';
+      modal.innerHTML = `
+        <div style="background: #fff; border-radius: 8px; width: 450px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.15); overflow: hidden; border: 1px solid #fecaca;">
+          <div style="background: #fee2e2; padding: 20px; display: flex; align-items: center; gap: 15px;">
+            <div style="font-size: 32px;">❌</div>
+            <div>
+              <h3 style="margin: 0; color: #991b1b; font-size: 18px; font-weight: 700;">Syntax Error!</h3>
+              <p style="margin: 5px 0 0 0; color: #b91c1c; font-size: 14px;">PHP compilation failed.</p>
+            </div>
+          </div>
+          <div style="padding: 24px;">
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; border-radius: 6px; margin-bottom: 20px; font-family: monospace; font-size: 13px; color: #334155; max-height: 150px; overflow-y: auto; white-space: pre-wrap;">${escapeHtml(errorMsg)}</div>
+            <p style="margin: 0 0 20px 0; color: #475569; font-size: 14px;">
+              A syntax error was detected${lineInfo}.
+            </p>
+            <div style="display: flex; gap: 12px;">
+              ${result.line ? `
+                <button id="go-to-error-line" style="flex: 1; background: #2563eb; color: #fff; border: none; padding: 10px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: background 0.2s;">
+                  Go to Line ${result.line}
+                </button>
+              ` : ''}
+              <button id="close-syntax-modal" style="flex: 1; background: #64748b; color: #fff; border: none; padding: 10px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: background 0.2s;">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      if (result.line) {
+        modal.querySelector('#go-to-error-line')?.addEventListener('click', () => {
+          broadcastToFrames({ type: 'SVH_FOCUS_ERROR_LINE', payload: result.line });
+          modal!.style.display = 'none';
+        });
+      }
+    }
+
+    modal.style.display = 'flex';
+
+    modal.querySelector('#close-syntax-modal')?.addEventListener('click', () => {
+      modal!.style.display = 'none';
+    });
+
+    modal.onclick = (e) => {
+      if (e.target === modal) modal!.style.display = 'none';
+    };
+  };
+
+  const runSyntaxCheck = () => {
+    showSyntaxResultModal({ loading: true });
+
+    let settled = false;
+    const listener = (event: MessageEvent) => {
+      if (event.data?.type === 'SVH_EDITOR_VALUE_RESULT') {
+        if (settled) return;
+        settled = true;
+        window.removeEventListener('message', listener);
+        clearTimeout(timeoutId);
+        const payload = typeof event.data.payload === 'string' ? event.data.payload : '';
+        
+        chrome.runtime.sendMessage({ type: 'VALIDATE_PHP', content: payload }, (res) => {
+          if (chrome.runtime.lastError) {
+            console.error('SVH: Validate runtime error', chrome.runtime.lastError.message);
+            showSyntaxResultModal({ loading: false, valid: false, error: 'Communication error: extension context may have been reloaded.' });
+            return;
+          }
+          if (res?.ok && res.data) {
+            showSyntaxResultModal({
+              loading: false,
+              valid: res.data.valid,
+              error: res.data.error,
+              line: res.data.line
+            });
+          } else {
+            showSyntaxResultModal({
+              loading: false,
+              valid: false,
+              error: res?.error || 'Failed to validate PHP.'
+            });
+          }
+        });
+      }
+    };
+    window.addEventListener('message', listener);
+
+    const timeoutId = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener('message', listener);
+      showSyntaxResultModal({ loading: false, valid: false, error: 'Timeout waiting for editor content.' });
+    }, 2000);
+
+    broadcastToFrames({ type: 'SVH_GET_EDITOR_VALUE' });
   };
 
   /**
@@ -170,6 +391,10 @@ function init() {
   const reEvaluateUI = () => {
     const existing = document.getElementById('svh-toggle-btn');
     if (existing) existing.remove();
+    const existingSyntax = document.getElementById('svh-check-syntax-btn');
+    if (existingSyntax) existingSyntax.remove();
+    const existingContainer = document.getElementById('svh-button-container');
+    if (existingContainer) existingContainer.remove();
     attachUI();
   };
 
@@ -240,6 +465,13 @@ function init() {
     if (t === 'SVH_RESTORE_CONTENT') {
       window.postMessage(
         { type: 'SVH_MAIN_RESTORE_CONTENT', payload: e.data.payload },
+        '*',
+      );
+    }
+
+    if (t === 'SVH_FOCUS_ERROR_LINE') {
+      window.postMessage(
+        { type: 'SVH_MAIN_FOCUS_ERROR_LINE', payload: e.data.payload },
         '*',
       );
     }

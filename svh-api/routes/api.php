@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\v1\DiffController;
 use App\Http\Controllers\Api\v1\HistoryController;
+use App\Http\Controllers\Api\v1\PHPValidationController;
 use App\Http\Controllers\Api\v1\PresenceController;
 use App\Http\Controllers\Api\v1\RestoreController;
 use App\Http\Controllers\Api\v1\SnapshotController;
@@ -20,7 +21,9 @@ Route::prefix('v1')
         Route::post('/diff/raw', [DiffController::class, 'raw']);
         Route::get('/diff/{a}/{b}', [DiffController::class, 'show']);
         Route::post('/restore', [RestoreController::class, 'store']);
+        Route::post('/validate-php', [PHPValidationController::class, 'validateCode']);
     });
+
 
 Route::get('/health', function () {
     return response()->json(['status' => 'ok']);

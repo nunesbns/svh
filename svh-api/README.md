@@ -121,5 +121,6 @@ docker compose logs -f app
 - `POST /api/v1/diff/raw`: Compare two raw code inputs and calculate diff.
 - `GET /api/v1/diff/{a}/{b}`: Get a pre-calculated diff between two versions.
 - `POST /api/v1/restore`: Restore a snapshot.
+- `POST /api/v1/validate-php`: Validate PHP code syntax using standard linter.
 - `GET /api/health`: Retrieve the API application health status.
 - `GET /api/metrics`: Retrieve real-time operational metrics.

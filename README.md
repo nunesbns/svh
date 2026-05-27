@@ -25,6 +25,7 @@ Installed in each developer's browser.
 - **Context**: Automatically resolves `cod_prj`, `cod_apl`, scope (events/libs), and the Scriptcase user login.
 - **Sidebar**: Provides a real-time timeline of snapshots, side-by-side diffs, and a one-click restore feature.
 - **Restore**: Injects historical content back into the IDE editor for review and final saving.
+- **Syntax Check**: Provides quick PHP syntax checking via the "Check Syntax" button, opening an on-screen dialog indicating compiler validation results and enabling a one-click jump to the error line.
 
 ### 2. API Hub (Laravel 12)
 Centralized hub for persistence and management.
