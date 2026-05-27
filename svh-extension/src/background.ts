@@ -116,6 +116,71 @@ async function processOutbox() {
   }
 }
 
+function getPermissionPattern(idePattern: string): string {
+  try {
+    let testStr = idePattern.trim();
+    if (testStr.startsWith('*://')) {
+      testStr = 'http://' + testStr.substring(4);
+    }
+    const protocolAndRest = testStr.split('://');
+    if (protocolAndRest.length === 2) {
+      let hostAndPath = protocolAndRest[1];
+      const pathIndex = hostAndPath.indexOf('/');
+      let host = pathIndex === -1 ? hostAndPath : hostAndPath.substring(0, pathIndex);
+      if (host.includes('*')) {
+        host = host.replace(/\*/g, 'wildcard-host');
+      }
+      testStr = protocolAndRest[0] + '://' + host;
+    }
+    const url = new URL(testStr);
+    const protocol = idePattern.trim().startsWith('*://') ? '*' : url.protocol.replace(':', '');
+    const host = url.host.includes('wildcard-host') ? '*' : url.host;
+    return `${protocol}://${host}/*`;
+  } catch (e) {
+    return idePattern;
+  }
+}
+
+async function registerScript(pattern: string) {
+  await chrome.scripting.registerContentScripts([{
+    id: 'svh-injector',
+    js: ['content/injector.js'],
+    matches: [pattern],
+    allFrames: true,
+    runAt: 'document_idle'
+  }]);
+}
+
+async function syncDynamicContentScripts() {
+  try {
+    const config = await storage.getConfig();
+    if (!config.idePattern) return;
+
+    const permissionPattern = getPermissionPattern(config.idePattern);
+    const hasPermission = await chrome.permissions.contains({ origins: [permissionPattern] });
+    if (!hasPermission) {
+      log(`SVH Background: No permission for idePattern origin ${permissionPattern}. Skipping content script registration.`);
+      return;
+    }
+
+    const scripts = await chrome.scripting.getRegisteredContentScripts();
+    const existing = scripts.find(s => s.id === 'svh-injector');
+
+    if (existing) {
+      if (existing.matches && existing.matches[0] !== config.idePattern) {
+        log(`SVH Background: Updating dynamic content script matches from ${existing.matches[0]} to ${config.idePattern}`);
+        await chrome.scripting.unregisterContentScripts({ ids: ['svh-injector'] });
+        await registerScript(config.idePattern);
+      }
+    } else {
+      log(`SVH Background: Registering dynamic content script for ${config.idePattern}`);
+      await registerScript(config.idePattern);
+    }
+  } catch (e: any) {
+    log(`SVH Background: Error syncing dynamic content scripts: ${e.message || e}`);
+  }
+}
+
 // Initialize alarms and outbox
 async function initialize() {
   log('SVH: Initializing background service worker');
@@ -130,6 +195,28 @@ async function initialize() {
     }
   } catch (e) {}
 
+  try {
+    const config = await storage.getConfig();
+    if (config.idePattern) {
+      const permissionPattern = getPermissionPattern(config.idePattern);
+      const hasPermission = await chrome.permissions.contains({ origins: [permissionPattern] });
+      if (hasPermission) {
+        setupWebRequestListeners(config.idePattern);
+      } else {
+        log(`SVH Background: Skipping webRequest listener setup (no permission for ${permissionPattern} yet)`);
+        if (isWebRequestListening) {
+          try {
+            chrome.webRequest.onBeforeRequest.removeListener(handleBeforeRequest);
+            isWebRequestListening = false;
+          } catch (e) {}
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error('SVH Background: Error checking permissions in initialize:', err.message || err);
+  }
+
+  await syncDynamicContentScripts();
   await processOutbox();
 }
 
@@ -143,6 +230,13 @@ chrome.runtime.onStartup.addListener(() => {
 
 // Listen for context updates and snapshot requests
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'CONFIG_UPDATED') {
+    log('SVH Background: CONFIG_UPDATED message received. Refreshing configuration and listeners.');
+    initialize().catch((err) => console.error('SVH Background: Error re-initializing on config update:', err));
+    try { sendResponse({ ok: true }); } catch (e) {}
+    return false;
+  }
+
   // Cross-frame relay: a child frame sends an editor value or restore ack;
   // we broadcast to every frame of the same tab. The frame that hosts the
   // sidebar will pick it up and re-emit it as a window message; others
@@ -286,55 +380,80 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return false;
 });
 
-// Intercept Scriptcase save requests for events, PHP methods and libraries.
-// Each endpoint posts a slightly different form, but the high-level flow is
-// the same: detect the save, build the payload, send it to the API.
-chrome.webRequest.onBeforeRequest.addListener(
-  (details) => {
-    const url = details.url;
+let isWebRequestListening = false;
 
-    // Always log lib endpoints so we can diagnose missing context updates.
-    if (url.includes('nm_edit_php_edit.php') || url.includes('nm_edit_php_list.php')) {
-      const formKeys = details.requestBody?.formData
-        ? Object.keys(details.requestBody.formData)
-        : null;
-      log(
-        `SVH Background: lib endpoint hit url=${url} method=${details.method}` +
-        ` formKeys=${JSON.stringify(formKeys)}`,
-      );
-    }
+function handleBeforeRequest(details: chrome.webRequest.WebRequestBodyDetails) {
+  const url = details.url;
 
-    if (details.method !== 'POST' || !details.requestBody?.formData) return;
+  // Always log lib endpoints so we can diagnose missing context updates.
+  if (url.includes('nm_edit_php_edit.php') || url.includes('nm_edit_php_list.php')) {
+    const formKeys = details.requestBody?.formData
+      ? Object.keys(details.requestBody.formData)
+      : null;
+    log(
+      `SVH Background: lib endpoint hit url=${url} method=${details.method}` +
+      ` formKeys=${JSON.stringify(formKeys)}`,
+    );
+  }
 
-    // Library editor (`nm_edit_php_edit.php`) handles both opening a lib
-    // and saving it; we route both inside handleLibRequest.
-    if (url.includes('nm_edit_php_edit.php')) {
-      handleLibRequest(details);
-      return;
-    }
+  if (details.method !== 'POST' || !details.requestBody?.formData) return;
 
-    if (url.includes('event.php')) {
-      handleEventSave(details);
-      return;
-    }
+  // Library editor (`nm_edit_php_edit.php`) handles both opening a lib
+  // and saving it; we route both inside handleLibRequest.
+  if (url.includes('nm_edit_php_edit.php')) {
+    handleLibRequest(details);
+    return;
+  }
 
-    if (url.includes('methods.php')) {
-      handleMethodSave(details);
-      return;
-    }
-  },
-  {
-    urls: [
-      "*://*/scriptcase/devel/iface/event.php*",
-      "*://*/scriptcase/devel/iface/methods.php*",
-      // Library files sit under /compat/ in current Scriptcase versions,
-      // not /iface/. We match both to be safe across versions.
-      "*://*/scriptcase/devel/compat/nm_edit_php_edit.php*",
-      "*://*/scriptcase/devel/iface/nm_edit_php_edit.php*",
-    ],
-  },
-  ["requestBody"]
-);
+  if (url.includes('event.php')) {
+    handleEventSave(details);
+    return;
+  }
+
+  if (url.includes('methods.php')) {
+    handleMethodSave(details);
+    return;
+  }
+}
+
+function setupWebRequestListeners(idePattern: string) {
+  if (isWebRequestListening) {
+    try {
+      chrome.webRequest.onBeforeRequest.removeListener(handleBeforeRequest);
+      isWebRequestListening = false;
+    } catch (e) {}
+  }
+
+  let basePath = idePattern.trim();
+  if (basePath.endsWith('/*')) {
+    basePath = basePath.substring(0, basePath.length - 2);
+  } else if (basePath.endsWith('*')) {
+    basePath = basePath.substring(0, basePath.length - 1);
+  }
+  if (basePath.endsWith('/')) {
+    basePath = basePath.substring(0, basePath.length - 1);
+  }
+
+  const urls = [
+    `${basePath}/iface/event.php*`,
+    `${basePath}/iface/methods.php*`,
+    `${basePath}/compat/nm_edit_php_edit.php*`,
+    `${basePath}/iface/nm_edit_php_edit.php*`
+  ];
+
+  log('SVH Background: Dynamically registering webRequest listeners for:', urls);
+
+  try {
+    chrome.webRequest.onBeforeRequest.addListener(
+      handleBeforeRequest,
+      { urls },
+      ["requestBody"]
+    );
+    isWebRequestListening = true;
+  } catch (err: any) {
+    console.error('SVH Background: Failed to register dynamic webRequest listener:', err.message || err);
+  }
+}
 
 async function handleEventSave(details: chrome.webRequest.WebRequestBodyDetails) {
   const data = details.requestBody!.formData!;

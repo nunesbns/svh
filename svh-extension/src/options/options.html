@@ -280,10 +280,16 @@
       display: flex;
     }
 
+    #status.error {
+      background: rgba(248,81,73,0.15);
+      border: 1px solid rgba(248,81,73,0.3);
+      color: var(--danger);
+    }
+
     #status svg {
       width: 15px;
       height: 15px;
-      stroke: var(--success);
+      stroke: currentColor;
       flex-shrink: 0;
     }
 
@@ -378,9 +384,9 @@
               <polyline points="8 6 2 12 8 18"/>
             </svg>
           </div>
-          <input type="text" id="idePattern" value="https://*/scriptcase/devel/*" />
+          <input type="text" id="idePattern" value="http://localhost/scriptcase/devel/*" />
         </div>
-        <span class="field-hint">URL pattern used to detect the Scriptcase IDE tab. Change only if your setup uses a non-standard path.</span>
+        <span class="field-hint">URL pattern used to detect the Scriptcase IDE tab (e.g. <code>http://localhost/scriptcase/devel/*</code>). The browser will request host permissions for this domain and the API domain upon saving.</span>
       </div>
 
       <div id="status">

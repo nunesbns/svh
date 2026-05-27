@@ -7,7 +7,7 @@ export interface SvhConfig {
 export class Storage {
   async getConfig(): Promise<SvhConfig> {
     const result = await chrome.storage.local.get(['config']);
-    return result.config || { apiUrl: '', apiKey: '', idePattern: 'https://*/scriptcase/devel/*' };
+    return result.config || { apiUrl: '', apiKey: '', idePattern: 'http://localhost/scriptcase/devel/*' };
   }
 
   async setConfig(config: SvhConfig): Promise<void> {
