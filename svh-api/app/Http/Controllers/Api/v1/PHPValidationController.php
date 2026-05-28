@@ -58,7 +58,8 @@ class PHPValidationController extends Controller
 
         // Run Pint
         $pintPath = base_path('vendor/bin/pint');
-        $command = escapeshellcmd($pintPath) . ' ' . escapeshellarg($tempFile) . ' --preset laravel';
+        $configPath = base_path('pint.json');
+        $command = escapeshellcmd($pintPath) . ' ' . escapeshellarg($tempFile) . ' --config ' . escapeshellarg($configPath);
 
         $descriptorspec = [
             0 => ["pipe", "r"], // stdin
