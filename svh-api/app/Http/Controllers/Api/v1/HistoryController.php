@@ -26,8 +26,13 @@ class HistoryController extends Controller
         $type = $validated['type'] ?? null;
         $isPublicLib = $type === 'public_lib';
 
+        $scope = $validated['scope'];
+        if ($type === 'function') {
+            $scope = preg_replace('/\s*\(.*\)\s*$/', '', $scope);
+        }
+
         $query = HistorySnapshot::query()
-            ->where('scope', $validated['scope'])
+            ->where('scope', $scope)
             ->orderByDesc('captured_at');
 
         if ($type !== null) {
