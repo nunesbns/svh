@@ -114,7 +114,7 @@ function init() {
 
     const formatBtn = document.createElement('button');
     formatBtn.id = 'svh-format-btn';
-    formatBtn.innerText = '✨ Format PSR-12';
+    formatBtn.innerText = '✨ Format';
 
     if (isLibEditor) {
       // Floating button container for the lib editor: fixed to the top-right corner
