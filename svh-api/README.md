@@ -111,6 +111,26 @@ The Dockerfile has a healthcheck querying the `/api/health` route on port 8080. 
 docker compose logs -f app
 ```
 
+### 🎨 Laravel Pint Customization (Optional)
+
+By default, the PHP formatter uses the rules and preset defined in `pint.json`. If you want to customize the formatting preset or rules locally without committing them to the repository, you can create a `pint-overwrite.json` file in the root of the `svh-api` directory.
+
+This file is automatically ignored by Git, and its configurations (such as `"preset"` or specific `"rules"`) will be recursively merged and take precedence over the base `pint.json` file during the formatting process.
+
+Example `pint-overwrite.json`:
+```json
+{
+    "preset": "symfony",
+    "rules": {
+        "concat_space": {
+            "spacing": "one"
+        }
+    }
+}
+```
+
+---
+
 ## 📋 API Endpoints
 
 - `POST /api/v1/snapshots`: Send a new code snapshot.

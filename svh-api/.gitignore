@@ -30,3 +30,4 @@ frankenphp
 frankenphp-worker.php
 
 docker-compose.override.yml
+pint-overwrite.json

@@ -58,8 +58,26 @@ class PHPValidationController extends Controller
 
         // Run Pint
         $pintPath = base_path('vendor/bin/pint');
+        
+        // Load default config
         $configPath = base_path('pint.json');
-        $command = escapeshellcmd($pintPath) . ' ' . escapeshellarg($tempFile) . ' --config ' . escapeshellarg($configPath);
+        $configData = [];
+        if (file_exists($configPath)) {
+            $configData = json_decode(file_get_contents($configPath), true) ?? [];
+        }
+
+        // Apply local overwrite if present
+        $overwritePath = base_path('pint-overwrite.json');
+        if (file_exists($overwritePath)) {
+            $overwriteData = json_decode(file_get_contents($overwritePath), true) ?? [];
+            $configData = array_replace_recursive($configData, $overwriteData);
+        }
+
+        // Write merged config to a temporary file
+        $tempConfigPath = sys_get_temp_dir() . '/svh_pint_config_' . uniqid() . '.json';
+        file_put_contents($tempConfigPath, json_encode($configData));
+
+        $command = escapeshellcmd($pintPath) . ' ' . escapeshellarg($tempFile) . ' --config ' . escapeshellarg($tempConfigPath);
 
         $descriptorspec = [
             0 => ["pipe", "r"], // stdin
@@ -80,6 +98,7 @@ class PHPValidationController extends Controller
         // Read formatted code
         $formatted = file_get_contents($tempFile);
         @unlink($tempFile);
+        @unlink($tempConfigPath);
 
         // Strip prepended opening tag
         $formatted = preg_replace('/^<\?php\n/i', '', $formatted);
