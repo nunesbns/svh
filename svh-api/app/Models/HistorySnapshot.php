@@ -33,6 +33,10 @@ class HistorySnapshot extends Model
                 }
 
                 return $value;
+            },
+            set: function ($value) {
+                if ($value === null) return null;
+                return '\x' . bin2hex($value);
             }
         )->shouldCache();
     }
