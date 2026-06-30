@@ -61,9 +61,36 @@ class SnapshotResource extends Resource
                 Tables\Columns\TextColumn::make('user_sc_login'),
                 Tables\Columns\TextColumn::make('captured_at')->dateTime()->sortable(),
             ])
+            ->defaultSort('captured_at', 'desc')
             ->filters([
                 Tables\Filters\SelectFilter::make('project_id')
-                    ->relationship('project', 'name'),
+                    ->relationship('project', 'name')
+                    ->label('Projeto'),
+                Tables\Filters\SelectFilter::make('application_id')
+                    ->relationship('application', 'cod_apl')
+                    ->label('Aplicação'),
+                Tables\Filters\SelectFilter::make('type')
+                    ->options(fn () => \App\Models\HistorySnapshot::query()->distinct()->pluck('type', 'type')->toArray())
+                    ->label('Tipo'),
+                Tables\Filters\SelectFilter::make('user_sc_login')
+                    ->options(fn () => \App\Models\HistorySnapshot::query()->whereNotNull('user_sc_login')->distinct()->pluck('user_sc_login', 'user_sc_login')->toArray())
+                    ->label('Usuário'),
+                Tables\Filters\Filter::make('captured_at')
+                    ->form([
+                        Forms\Components\DatePicker::make('captured_from')->label('Data Inicial'),
+                        Forms\Components\DatePicker::make('captured_until')->label('Data Final'),
+                    ])
+                    ->query(function (\Illuminate\Database\Eloquent\Builder $query, array $data): \Illuminate\Database\Eloquent\Builder {
+                        return $query
+                            ->when(
+                                $data['captured_from'],
+                                fn (\Illuminate\Database\Eloquent\Builder $query, $date): \Illuminate\Database\Eloquent\Builder => $query->whereDate('captured_at', '>=', $date),
+                            )
+                            ->when(
+                                $data['captured_until'],
+                                fn (\Illuminate\Database\Eloquent\Builder $query, $date): \Illuminate\Database\Eloquent\Builder => $query->whereDate('captured_at', '<=', $date),
+                            );
+                    })
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),
