@@ -35,9 +35,12 @@ class DiffEntry extends Entry
         $previousContent = (string) $previous->content_blob;
 
         try {
-            $builder = new UnifiedDiffOutputBuilder("--- Original\n+++ Current\n", false);
+            $builder = new UnifiedDiffOutputBuilder("--- a/Original\n+++ b/Current\n", false);
             $differ = new Differ($builder);
-            return $differ->diff($previousContent, $currentContent);
+            $diff = $differ->diff($previousContent, $currentContent);
+            
+            // Prepend a git-like header to ensure Diff2Html parses it properly
+            return "diff --git a/Original b/Current\n" . $diff;
         } catch (\Exception $e) {
             return 'Diff Error: ' . $e->getMessage();
         }
