@@ -74,15 +74,8 @@
                 }
                 .dark .d2h-code-side-emptyplaceholder { background-color: #0f172a; border-color: #334155; }
             </style>
-        @elseif($content)
-            <div class="bg-gray-100 text-gray-800 dark:bg-slate-800 dark:text-slate-200 p-4 rounded-lg overflow-x-auto font-mono text-sm leading-tight border border-gray-300 dark:border-slate-700">
-                <div class="mb-2 text-xs font-semibold text-gray-500 dark:text-gray-400 border-b border-gray-300 dark:border-slate-700 pb-2">Full Snapshot Content</div>
-                <pre>@foreach(explode("\n", $content) as $line)
-{{ $line }}
-@endforeach</pre>
-            </div>
         @else
-            <div class="text-gray-500 dark:text-gray-400 italic">(No content available)</div>
+            <div class="text-gray-500 dark:text-gray-400 italic">{{ __('No code changes') }}</div>
         @endif
     </div>
 </x-dynamic-component>
