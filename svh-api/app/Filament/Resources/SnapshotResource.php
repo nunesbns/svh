@@ -37,6 +37,14 @@ class SnapshotResource extends Resource
                             ->columnSpanFull()
                             ->label(''),
                     ]),
+                Infolists\Components\Section::make(__('Original Code'))
+                    ->collapsed()
+                    ->schema([
+                        Infolists\Components\TextEntry::make('content_blob')
+                            ->columnSpanFull()
+                            ->label('')
+                            ->view('infolists.components.code-block'),
+                    ]),
             ]);
     }
 
@@ -54,31 +62,31 @@ class SnapshotResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('project.cod_prj'),
-                Tables\Columns\TextColumn::make('application.cod_apl'),
-                Tables\Columns\TextColumn::make('scope'),
-                Tables\Columns\TextColumn::make('type')->badge(),
-                Tables\Columns\TextColumn::make('user_sc_login'),
-                Tables\Columns\TextColumn::make('captured_at')->dateTime()->sortable(),
+                Tables\Columns\TextColumn::make('project.cod_prj')->label(__('Project')),
+                Tables\Columns\TextColumn::make('application.cod_apl')->label(__('Application')),
+                Tables\Columns\TextColumn::make('scope')->label(__('Scope')),
+                Tables\Columns\TextColumn::make('type')->badge()->label(__('Type')),
+                Tables\Columns\TextColumn::make('user_sc_login')->label(__('User')),
+                Tables\Columns\TextColumn::make('captured_at')->dateTime()->sortable()->label(__('Captured At')),
             ])
             ->defaultSort('captured_at', 'desc')
             ->filters([
                 Tables\Filters\SelectFilter::make('project_id')
                     ->relationship('project', 'name')
-                    ->label('Projeto'),
+                    ->label(__('Project')),
                 Tables\Filters\SelectFilter::make('application_id')
                     ->relationship('application', 'cod_apl')
-                    ->label('Aplicação'),
+                    ->label(__('Application')),
                 Tables\Filters\SelectFilter::make('type')
                     ->options(fn () => \App\Models\HistorySnapshot::query()->distinct()->pluck('type', 'type')->toArray())
-                    ->label('Tipo'),
+                    ->label(__('Type')),
                 Tables\Filters\SelectFilter::make('user_sc_login')
                     ->options(fn () => \App\Models\HistorySnapshot::query()->whereNotNull('user_sc_login')->distinct()->pluck('user_sc_login', 'user_sc_login')->toArray())
-                    ->label('Usuário'),
+                    ->label(__('User')),
                 Tables\Filters\Filter::make('captured_at')
                     ->form([
-                        Forms\Components\DatePicker::make('captured_from')->label('Data Inicial'),
-                        Forms\Components\DatePicker::make('captured_until')->label('Data Final'),
+                        Forms\Components\DatePicker::make('captured_from')->label(__('Start Date')),
+                        Forms\Components\DatePicker::make('captured_until')->label(__('End Date')),
                     ])
                     ->query(function (\Illuminate\Database\Eloquent\Builder $query, array $data): \Illuminate\Database\Eloquent\Builder {
                         return $query
@@ -91,6 +99,7 @@ class SnapshotResource extends Resource
                                 fn (\Illuminate\Database\Eloquent\Builder $query, $date): \Illuminate\Database\Eloquent\Builder => $query->whereDate('captured_at', '<=', $date),
                             );
                     })
+                    ->label(__('Date Range'))
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),
