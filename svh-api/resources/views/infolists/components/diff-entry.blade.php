@@ -58,10 +58,19 @@
                 .diff-wrapper .d2h-wrapper { font-size: 0.875rem; border-color: inherit; }
                 .fi-ta-content { overflow: visible !important; }
                 
+                /* Fix sticky line numbers transparency */
+                .diff-wrapper .d2h-code-side-linenumber {
+                    background-color: #f9fafb;
+                    z-index: 5;
+                }
+                
                 /* Extra CSS fixes for dark mode in case Diff2Html doesn't catch all elements */
                 .dark .d2h-wrapper {
                     --d2h-bg-color: #1e293b;
                     --d2h-empty-placeholder-bg-color: #0f172a;
+                }
+                .dark .diff-wrapper .d2h-code-side-linenumber {
+                    background-color: #0f172a;
                 }
                 .dark .d2h-code-side-emptyplaceholder { background-color: #0f172a; border-color: #334155; }
             </style>

@@ -31,7 +31,8 @@ class SnapshotResource extends Resource
                         Infolists\Components\TextEntry::make('user_sc_login'),
                         Infolists\Components\TextEntry::make('captured_at')->dateTime(),
                     ])->columns(3),
-                Infolists\Components\Section::make('Code Changes')
+                Infolists\Components\Section::make(__('Code Changes'))
+                    ->collapsible()
                     ->schema([
                         DiffEntry::make('content_blob')
                             ->columnSpanFull()
