@@ -1,6 +1,6 @@
 {
   "name": "svh-extension",
-  "version": "1.0.0",
+  "version": "1.1.1",
   "description": "Scriptcase Versioning Hub Chrome Extension",
   "scripts": {
     "build": "node build.js",

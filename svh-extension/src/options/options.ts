@@ -8,6 +8,14 @@ if (logoEl) {
   logoEl.src = chrome.runtime.getURL('images/icon128.png');
 }
 
+const versionEl = document.getElementById('version');
+if (versionEl && typeof chrome !== 'undefined' && chrome.runtime?.getManifest) {
+  const manifest = chrome.runtime.getManifest();
+  if (manifest?.version) {
+    versionEl.textContent = `v${manifest.version}`;
+  }
+}
+
 function getOriginPattern(input: string): string | null {
   try {
     let testStr = input.trim();

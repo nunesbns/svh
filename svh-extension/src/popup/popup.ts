@@ -5,6 +5,14 @@ async function init() {
     logoEl.src = chrome.runtime.getURL('images/icon128.png');
   }
 
+  const versionEl = document.getElementById('version');
+  if (versionEl && typeof chrome !== 'undefined' && chrome.runtime?.getManifest) {
+    const manifest = chrome.runtime.getManifest();
+    if (manifest?.version) {
+      versionEl.textContent = `v${manifest.version}`;
+    }
+  }
+
   try {
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
     const url = tabs[0]?.url || '';

@@ -54,8 +54,20 @@ async function build() {
 
   // Copy static assets
   fs.copyFileSync('manifest.json', 'dist/manifest.json');
-  fs.copyFileSync('src/options/options.html', 'dist/options.html');
-  fs.copyFileSync('src/popup/popup.html', 'dist/popup.html');
+
+  const manifest = JSON.parse(fs.readFileSync('manifest.json', 'utf-8'));
+  const version = manifest.version || '';
+
+  const copyHtmlWithVersion = (srcPath, destPath) => {
+    let content = fs.readFileSync(srcPath, 'utf-8');
+    if (version) {
+      content = content.replace(/id="version">v[^<]*/g, `id="version">v${version}`);
+    }
+    fs.writeFileSync(destPath, content);
+  };
+
+  copyHtmlWithVersion('src/options/options.html', 'dist/options.html');
+  copyHtmlWithVersion('src/popup/popup.html', 'dist/popup.html');
 
   // Copy images folder
   if (fs.existsSync('images')) {
