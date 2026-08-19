@@ -55,4 +55,38 @@ class PHPValidationControllerTest extends TestCase
         // Empty preset should NOT format array spaces
         $this->assertStringContainsString('[1,2,3]', $result['content'] ?? '');
     }
+
+    public function test_format_code_handles_fatal_error_properly(): void
+    {
+        $code = "\$a = 1;\nunset(foo());\n\$b = 2;";
+
+        $response = $this->withoutMiddleware()
+            ->postJson('/api/v1/format-php', [
+                'content' => $code
+            ]);
+
+        $response->assertStatus(200);
+        $result = $response->json();
+
+        $this->assertFalse($result['valid']);
+        $this->assertStringContainsString("Can't use function return value in write context", $result['error']);
+        $this->assertEquals(2, $result['line']);
+    }
+
+    public function test_validate_code_handles_fatal_error_properly(): void
+    {
+        $code = "\$a = 1;\nunset(foo());\n\$b = 2;";
+
+        $response = $this->withoutMiddleware()
+            ->postJson('/api/v1/validate-php', [
+                'content' => $code
+            ]);
+
+        $response->assertStatus(200);
+        $result = $response->json();
+
+        $this->assertFalse($result['valid']);
+        $this->assertStringContainsString("Can't use function return value in write context", $result['error']);
+        $this->assertEquals(2, $result['line']);
+    }
 }

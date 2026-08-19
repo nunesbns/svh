@@ -170,7 +170,7 @@ class PHPValidationController extends Controller
             } else {
                 $output = $stdout ?: $stderr;
                 // Parse line number and parse error description.
-                if (preg_match('/Parse error:\s+(.+) in .*? on line (\d+)/i', $output, $matches)) {
+                if (preg_match('/(?:Parse|Fatal) error:\s+(.+) in .*? on line (\d+)/i', $output, $matches)) {
                     $errorMsg = trim($matches[1]);
                     $rawLine = (int)$matches[2];
                     $line = max(1, $rawLine - 1);
